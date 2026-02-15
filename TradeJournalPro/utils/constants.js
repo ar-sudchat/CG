@@ -4,10 +4,10 @@ import { Platform } from 'react-native';
 // If running on local machine, use your computer's IP address (e.g., 192.168.1.XX)
 // or ngrok tunnel URL if developing on real device.
 // For emulator/simulator, '10.0.2.2' for Android emulator, 'localhost' for iOS simulator.
-export const API_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api';
+export const API_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001/api' : 'http://localhost:5001/api';
 
 // Socket.io URL (same as backend but without /api)
-export const SOCKET_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+export const SOCKET_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
 
 // Example translations (expanded in AppDataContext)
 export const translations = {
@@ -16,6 +16,11 @@ export const translations = {
     latest_trades: 'เทรดล่าสุด', select_language: 'เลือกภาษา', close: 'ปิด', items: 'รายการ', no_trades_yet: 'ยังไม่มีการบันทึกเทรด',
     create_account_first: 'โปรดสร้างบัญชีก่อนทำการบันทึกเทรด', create_setup_first: 'โปรดสร้าง Setup ก่อน',
     theme_dark: 'ธีมมืด', theme_light: 'ธีมสว่าง',
+    // Auth
+    login_subtitle: 'เข้าสู่ระบบเพื่อจัดการบันทึกการเทรด', login_button: 'เข้าสู่ระบบ', register_link: 'ยังไม่มีบัญชี? ลงทะเบียนที่นี่',
+    register_subtitle: 'สร้างบัญชีเพื่อเริ่มต้นบันทึกการเทรด', register_button: 'ลงทะเบียน', login_link: 'มีบัญชีอยู่แล้ว? เข้าสู่ระบบ',
+    username: 'ชื่อผู้ใช้', password: 'รหัสผ่าน', confirm_password: 'ยืนยันรหัสผ่าน', email: 'อีเมล', email_placeholder: 'your@email.com',
+    password_mismatch: 'รหัสผ่านไม่ตรงกัน', invalid_email: 'รูปแบบอีเมลไม่ถูกต้อง', logout: 'ออกจากระบบ',
     // New: Forex & SMC/ICT Analysis
     menu_live_prices: 'ราคาสด', menu_alerts: 'แจ้งเตือน', menu_analysis: 'วิเคราะห์', menu_ai_analysis: 'AI วิเคราะห์', menu_knowledge: 'คู่มือ SMC/ICT',
     connected: 'เชื่อมต่อแล้ว', disconnected: 'ขาดการเชื่อมต่อ',
@@ -39,6 +44,11 @@ export const translations = {
     latest_trades: 'Latest Trades', select_language: 'Select Language', close: 'Close', items: 'items', no_trades_yet: 'No trades recorded yet',
     create_account_first: 'Please create an account before logging a trade', create_setup_first: 'Please create a setup first',
     theme_dark: 'Dark Theme', theme_light: 'Light Theme',
+    // Auth
+    login_subtitle: 'Sign in to manage your trading journal', login_button: 'Sign In', register_link: "Don't have an account? Register here",
+    register_subtitle: 'Create an account to start logging trades', register_button: 'Register', login_link: 'Already have an account? Sign in',
+    username: 'Username', password: 'Password', confirm_password: 'Confirm Password', email: 'Email', email_placeholder: 'your@email.com',
+    password_mismatch: 'Passwords do not match', invalid_email: 'Invalid email format', logout: 'Logout',
     // New: Forex & SMC/ICT Analysis
     menu_live_prices: 'Live Prices', menu_alerts: 'Alerts', menu_analysis: 'Analysis', menu_ai_analysis: 'AI Analysis', menu_knowledge: 'SMC/ICT Guide',
     connected: 'Connected', disconnected: 'Disconnected',

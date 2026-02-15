@@ -120,47 +120,28 @@ const styles = StyleSheet.create({
 
 
 const LoginScreen = () => {
-  const { state, navigateTo, setState: setGlobalState, t } = useContext(AppContext);
+  const { state, navigateTo, login, t } = useContext(AppContext);
   const isLightMode = state.currentTheme === 'light';
   const currentStyles = isLightMode ? lightStyles : darkStyles;
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert(t('please_fill_all_fields'));
+      Alert.alert(t('please_fill_all_fields') || 'Please fill all fields');
       return;
     }
 
-    // --- Placeholder for API call ---
-    // In a real app, you would call your backend login API here:
-    // try {
-    //   const response = await loginApi.login(username, password);
-    //   if (response.success) {
-    //     // Save token to AsyncStorage and update global user state
-    //     await AsyncStorage.setItem('userToken', response.token);
-    //     setGlobalState(prevState => ({
-    //       ...prevState,
-    //       user: { username: response.username, token: response.token }, // Example user data
-    //       currentPage: 'Main', // Navigate to main app
-    //     }));
-    //     Alert.alert('Login Successful', 'Welcome back!');
-    //   } else {
-    //     Alert.alert('Login Failed', response.message || 'Invalid credentials.');
-    //   }
-    // } catch (error) {
-    //   Alert.alert('Error', 'Could not connect to server.');
-    // }
+    setLoading(true);
+    const result = await login(username, password);
+    setLoading(false);
 
-    // --- For now, simulate successful login and navigate to MainScreen ---
-    Alert.alert('Login Successful', 'Simulated login. Welcome!');
-    setGlobalState(prevState => ({
-      ...prevState,
-      // In a real app, you'd set actual user data and token here
-      user: { username: username, token: 'dummy_token_123' },
-      currentPage: 'Main', // Navigate to MainScreen after successful login
-    }));
+    if (!result.success) {
+      Alert.alert('Login Failed', result.message || 'Invalid credentials.');
+    }
+    // On success, RootNavigator automatically switches to App stack
   };
 
   return (

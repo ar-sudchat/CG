@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
 
 
 const RegisterScreen = () => {
-  const { state, navigateTo, setState: setGlobalState, t } = useContext(AppContext);
+  const { state, navigateTo, register, t } = useContext(AppContext);
   const isLightMode = state.currentTheme === 'light';
   const currentStyles = isLightMode ? lightStyles : darkStyles;
 
@@ -128,39 +128,30 @@ const RegisterScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-      Alert.alert(t('please_fill_all_fields'));
+      Alert.alert(t('please_fill_all_fields') || 'Please fill all fields');
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert(t('password_mismatch') || 'รหัสผ่านไม่ตรงกัน');
+      Alert.alert(t('password_mismatch') || 'Passwords do not match');
       return;
     }
-    // Basic email validation (can be more robust)
     if (!email.includes('@') || !email.includes('.')) {
-      Alert.alert(t('invalid_email') || 'รูปแบบอีเมลไม่ถูกต้อง');
+      Alert.alert(t('invalid_email') || 'Invalid email format');
       return;
     }
 
-    // --- Placeholder for API call ---
-    // In a real app, you would call your backend registration API here:
-    // try {
-    //   const response = await authApi.register(username, email, password);
-    //   if (response.success) {
-    //     Alert.alert('Registration Successful', 'You can now log in.');
-    //     navigateTo('Login'); // Navigate to login screen after successful registration
-    //   } else {
-    //     Alert.alert('Registration Failed', response.message || 'Something went wrong.');
-    //   }
-    // } catch (error) {
-    //   Alert.alert('Error', 'Could not connect to server.');
-    // }
+    setLoading(true);
+    const result = await register(username, email, password);
+    setLoading(false);
 
-    // --- For now, simulate successful registration and navigate to LoginScreen ---
-    Alert.alert('Registration Successful', 'Simulated registration. Please log in.');
-    navigateTo('Login'); // Navigate to LoginScreen after simulated registration
+    if (!result.success) {
+      Alert.alert('Registration Failed', result.message || 'Something went wrong.');
+    }
+    // On success, RootNavigator automatically switches to App stack
   };
 
   return (

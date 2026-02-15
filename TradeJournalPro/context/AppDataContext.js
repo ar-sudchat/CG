@@ -46,7 +46,7 @@ const appDataReducer = (state, action) => {
 
 export const AppDataProvider = ({ children }) => {
   const [state, dispatch] = useReducer(appDataReducer, {
-    currentTheme: 'dark', // Default theme
+    currentTheme: 'light', // Default theme
     currentLanguage: 'th', // Default language
     accounts: [],
     setups: [],

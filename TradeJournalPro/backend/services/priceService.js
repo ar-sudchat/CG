@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const EventEmitter = require('events');
 
 const FOREX_PAIRS = [
+    { symbol: 'OANDA:XAU_USD', display: 'XAU/USD' },
     { symbol: 'OANDA:EUR_USD', display: 'EUR/USD' },
     { symbol: 'OANDA:GBP_USD', display: 'GBP/USD' },
     { symbol: 'OANDA:USD_JPY', display: 'USD/JPY' },
@@ -59,8 +60,10 @@ class PriceService extends EventEmitter {
                             timestamp: new Date(tick.t),
                         };
 
-                        // Calculate bid/ask/spread from price
-                        const spreadPips = 0.00015; // approximate
+                        // Calculate bid/ask/spread from price (varies by instrument)
+                        let spreadPips = 0.00015; // default for major forex pairs
+                        if (symbol.includes('XAU')) spreadPips = 0.30;
+                        else if (symbol.includes('JPY')) spreadPips = 0.015;
                         priceData.bid = tick.p - spreadPips / 2;
                         priceData.ask = tick.p + spreadPips / 2;
                         priceData.spread = spreadPips;

@@ -47,12 +47,62 @@ class AiAnalysisService {
         const indicatorsSummary = this._formatIndicators(indicators);
         const smcSummary = this._formatSmcPatterns(smcResult);
 
+        const smcMethodology = `
+=== ระบบ SMC Checklist 4 ขั้นตอน (จาก The Ninja [TH]) ===
+
+ระบบนี้เน้นการรอ ไม่บังคับกราฟ แบ่งลำดับการวิเคราะห์เป็น 4 ขั้นตอน:
+
+ขั้นตอนที่ 1: Trend/Structure (Demand/Supply)
+- มองหาแพทเทิร์น Rally-Base-Rally (RBR)
+- Base (Demand) ต้องส่งกราฟขึ้นไป Break Structure (ชนะแนวต้าน Lower High ฝั่งซ้าย) หรือทำ New High (Higher High)
+- ถ้ากราฟทำ High ใหม่ = Demand (แรงซื้อ) คุมตลาด → โฟกัสหน้า Buy
+- ถ้ากราฟทำ Low ใหม่ = Supply (แรงขาย) คุมตลาด → โฟกัสหน้า Sell
+- โซนต้อง Fresh (ยังไม่เคยถูกใช้งาน / Unmitigated)
+
+ขั้นตอนที่ 2: Liquidity
+- ห้ามไล่ราคา (Don't chase)
+- มองการพุ่งขึ้นทำ High ใหม่ว่าเป็นการสร้าง Liquidity (เชื้อเพลิง)
+- รอให้ราคาย่อตัวกลับมาหาโซน Demand/Supply ที่เราเล็งไว้
+
+ขั้นตอนที่ 3: POI (Point of Interest)
+- หา Base ที่ส่งกราฟไป Break Structure หรือ New High/Low
+- เช็คว่า Base นั้นยัง Fresh (ไม่เคยโดนแตะ)
+- สำคัญที่สุด: Base ต้องมี Imbalance หรือ Fair Value Gap (FVG)
+- หากแท่ง Base หลักไม่มี Imbalance ให้หา Hidden Demand (แท่งย่อยที่มี Imbalance)
+- แนะนำหา POI ใน Timeframe M15 หรือ M5
+
+ขั้นตอนที่ 4: Confirmation (ใน LTF เช่น M1)
+โมเดลยืนยันจุดเข้า:
+- W2 Model (Sweep & Break): ราคาลงมา Sweep กิน Stop Loss โลว์เดิม แล้วดีดกลับเบรก Neckline
+- W3 Model (Higher Low): ราคายก Low สูงขึ้น (ไม่ทำ Low ใหม่) แล้วเบรกขึ้นไป
+- Demand/Supply Flip: Demand รับอยู่แล้วส่งกราฟสวนกลับขึ้นไปทำลาย Supply ได้
+- BOS Continuation: รอเกิด Break of Structure แล้วหาจังหวะเข้าตอนย่อ (Retest)
+
+เทคนิคขั้นสูง:
+- 3 Drives / Divergence: ราคาทำ Low ต่ำลง 3 ครั้ง + Divergence แล้ว Break Structure กลับขึ้น
+- Wyckoff Spring: รอ Spring (หลุด Low แล้วดึงกลับ) แล้ว Break โครงสร้าง
+
+โครงสร้าง External vs Internal:
+- External Structure: ภาพใหญ่ กำหนดทิศทางหลัก
+- Internal Structure: คลื่นย่อยๆ ระหว่าง Retracement ระวังสัญญาณหลอก
+
+สรุปขั้นตอนการเทรด:
+1. M15/M5: หา Base ที่ส่งกราฟทำ New High มี Imbalance (ตีกรอบรอไว้)
+2. Wait: ตั้ง Alert รอราคาย่อกลับมาแตะโซน
+3. M1: เมื่อแจ้งเตือนดัง ให้เข้าไปดู Timeframe 1 นาที
+4. Confirm: รอเกิดโมเดล W2, W3 หรือ Flip
+5. Entry: เข้าออเดอร์เมื่อครบเงื่อนไข วาง Stop Loss หลังโซนหรือใต้ Low
+`;
+
         const systemPrompt = `คุณเป็นผู้เชี่ยวชาญการวิเคราะห์ Forex ด้วยหลัก SMC (Smart Money Concepts) / ICT (Inner Circle Trader)
-คุณมีความรู้เรื่อง Order Blocks, Fair Value Gaps, Break of Structure, Change of Character, Liquidity Sweeps, Kill Zones และ Optimal Trade Entry
+คุณต้องวิเคราะห์ตาม Checklist 4 ขั้นตอน: 1.Structure 2.Liquidity 3.POI 4.Confirmation
+
+${smcMethodology}
 
 ให้วิเคราะห์ข้อมูลราคาและ patterns ที่ตรวจจับได้ แล้วให้คำแนะนำการเทรดเป็นภาษาไทย
+ตอบตาม Checklist 4 ขั้นตอนเสมอ และระบุว่าตอนนี้ราคาอยู่ที่ขั้นตอนไหนของ checklist
 
-${knowledge.textContext ? `\n--- ความรู้จากคู่มือ ---\n${knowledge.textContext}` : ''}`;
+${knowledge.textContext ? `\n--- ความรู้เพิ่มเติมจากคู่มือ ---\n${knowledge.textContext}` : ''}`;
 
         const userPrompt = `วิเคราะห์ ${displaySymbol} (Timeframe: ${resolution})
 

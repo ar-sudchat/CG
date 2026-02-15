@@ -25,8 +25,8 @@ const getLivePrices = async (req, res) => {
 const getCandles = async (req, res) => {
     try {
         const { symbol } = req.params;
-        const { resolution = '60', from, to } = req.query;
-        const candles = await historicalService.fetchCandles(symbol, resolution, from, to);
+        const { resolution = '60', from, to, refresh } = req.query;
+        const candles = await historicalService.fetchCandles(symbol, resolution, from, to, { forceRefresh: refresh === 'true' });
         res.status(200).json(candles);
     } catch (error) {
         res.status(500).json({ message: error.message });

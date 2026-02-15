@@ -1,17 +1,47 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loginUser, registerUser, getMyProfile, updateMyPreferences } from '../api/auth';
-import { Alert } from 'react-native';
-import { AppDataContext } from './AppDataContext'; // Import AppDataContext to access language/theme
+import { getAccounts } from '../api/accounts';
+import { getSetups } from '../api/setups';
+import { getTrades } from '../api/trades';
+import { useAppData } from './AppDataContext';
 
-const AuthContext = createContext();
+// Combined AppContext - provides everything screens need
+export const AppContext = createContext();
 
-export const AuthProvider = ({ children }) => {
+export const AppProvider = ({ children, navigationRef }) => {
+  // Auth state
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { state: appState, dispatch: appDispatch } = useContext(AppDataContext);
 
+  // Get AppData context values
+  const { state, dispatch, t, toggleTheme, setLanguage, currentStyles } = useAppData();
+
+  // Navigation helper using ref from App.js
+  const navigateTo = (screen, params) => {
+    if (navigationRef?.isReady()) {
+      navigationRef.navigate(screen, params);
+    }
+  };
+
+  // Fetch user data (accounts, setups, trades) from backend
+  const fetchUserData = async (userToken) => {
+    try {
+      const [accountsData, setupsData, tradesData] = await Promise.all([
+        getAccounts(userToken).catch(() => []),
+        getSetups(userToken).catch(() => []),
+        getTrades(userToken).catch(() => []),
+      ]);
+      dispatch({ type: 'SET_ACCOUNTS', payload: accountsData });
+      dispatch({ type: 'SET_SETUPS', payload: setupsData });
+      dispatch({ type: 'SET_TRADES', payload: tradesData });
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+    }
+  };
+
+  // Load user from storage on app start
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -20,20 +50,21 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken);
           const userData = await getMyProfile(storedToken);
           setUser(userData);
-          // Set initial theme and language from user preferences
           if (userData && userData.preferences) {
-            appDispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
-            appDispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
+            dispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
+            dispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
           }
+          await fetchUserData(storedToken);
         }
       } catch (error) {
         console.error('Failed to load user from storage', error);
+        await AsyncStorage.removeItem('userToken');
       } finally {
         setIsLoading(false);
       }
     };
     loadUser();
-  }, [appDispatch]);
+  }, []);
 
   const login = async (username, password) => {
     setIsLoading(true);
@@ -42,15 +73,15 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem('userToken', userData.token);
       setUser(userData);
       setToken(userData.token);
-      // Update theme and language from user preferences
       if (userData.preferences) {
-        appDispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
-        appDispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
+        dispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
+        dispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
       }
+      await fetchUserData(userData.token);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
-      return { success: false, message: error.message || 'Login failed' };
+      return { success: false, message: typeof error === 'string' ? error : (error.message || 'Login failed') };
     } finally {
       setIsLoading(false);
     }
@@ -63,15 +94,15 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem('userToken', userData.token);
       setUser(userData);
       setToken(userData.token);
-      // Set initial theme and language from user preferences (defaults to dark/th if not set by backend)
       if (userData.preferences) {
-        appDispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
-        appDispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
+        dispatch({ type: 'SET_THEME', payload: userData.preferences.theme });
+        dispatch({ type: 'SET_LANGUAGE', payload: userData.preferences.language });
       }
+      await fetchUserData(userData.token);
       return { success: true };
     } catch (error) {
       console.error('Register error:', error);
-      return { success: false, message: error.message || 'Registration failed' };
+      return { success: false, message: typeof error === 'string' ? error : (error.message || 'Registration failed') };
     } finally {
       setIsLoading(false);
     }
@@ -82,9 +113,11 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('userToken');
       setToken(null);
       setUser(null);
-      // Reset app preferences to default on logout
-      appDispatch({ type: 'SET_THEME', payload: 'dark' });
-      appDispatch({ type: 'SET_LANGUAGE', payload: 'th' });
+      dispatch({ type: 'SET_ACCOUNTS', payload: [] });
+      dispatch({ type: 'SET_SETUPS', payload: [] });
+      dispatch({ type: 'SET_TRADES', payload: [] });
+      dispatch({ type: 'SET_THEME', payload: 'dark' });
+      dispatch({ type: 'SET_LANGUAGE', payload: 'th' });
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -98,22 +131,41 @@ export const AuthProvider = ({ children }) => {
         ...prevUser,
         preferences: updatedUserPreferences.preferences
       }));
-      appDispatch({ type: 'SET_THEME', payload: updatedUserPreferences.preferences.theme });
-      appDispatch({ type: 'SET_LANGUAGE', payload: updatedUserPreferences.preferences.language });
+      dispatch({ type: 'SET_THEME', payload: updatedUserPreferences.preferences.theme });
+      dispatch({ type: 'SET_LANGUAGE', payload: updatedUserPreferences.preferences.language });
       return { success: true };
     } catch (error) {
       console.error('Update preferences error:', error);
       return { success: false, message: error.message || 'Failed to update preferences' };
     }
-  }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, updatePreferences }}>
+    <AppContext.Provider value={{
+      // AppData values
+      state, dispatch, t, toggleTheme, setLanguage, currentStyles,
+      // Auth values
+      user, token, isLoading, login, register, logout, updatePreferences,
+      // Navigation
+      navigateTo,
+      // Data refresh
+      fetchUserData,
+    }}>
       {children}
-    </AuthContext.Provider>
+    </AppContext.Provider>
   );
 };
 
+// Hook for auth-specific usage (backward compat for SocketContext)
 export const useAuth = () => {
-  return useContext(AuthContext);
+  const context = useContext(AppContext);
+  return {
+    user: context.user,
+    token: context.token,
+    isLoading: context.isLoading,
+    login: context.login,
+    register: context.register,
+    logout: context.logout,
+    updatePreferences: context.updatePreferences,
+  };
 };
