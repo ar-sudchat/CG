@@ -1,24 +1,26 @@
-const Account = require('../models/Account');
-const Trade = require('../models/Trade'); // To calculate current balance from trades
+const prisma = require('../lib/prisma');
 
 // @desc    Get all accounts for a user
 // @route   GET /api/accounts
 // @access  Private
 const getAccounts = async (req, res) => {
     try {
-        const accounts = await Account.find({ userId: req.user.id });
+        const accounts = await prisma.account.findMany({
+            where: { userId: req.user.id },
+            include: { trades: { select: { pnl: true } } },
+        });
 
-        // Calculate current balance for each account on the fly
-        const accountsWithBalance = await Promise.all(accounts.map(async (account) => {
-            const trades = await Trade.find({ accountId: account._id });
-            const totalPnl = trades.reduce((sum, trade) => sum + trade.pnl, 0);
+        const accountsWithBalance = accounts.map((account) => {
+            const totalPnl = account.trades.reduce((sum, t) => sum + t.pnl, 0);
+            const { trades, ...rest } = account;
             return {
-                ...account.toObject(),
+                ...rest,
+                _id: account.id,
                 currentBalance: account.initialBalance + totalPnl,
-                totalPnl: totalPnl,
-                tradeCount: trades.length
+                totalPnl,
+                tradeCount: account.trades.length,
             };
-        }));
+        });
 
         res.status(200).json(accountsWithBalance);
     } catch (error) {
@@ -37,12 +39,14 @@ const createAccount = async (req, res) => {
     }
 
     try {
-        const newAccount = await Account.create({
-            userId: req.user.id,
-            name,
-            initialBalance,
+        const newAccount = await prisma.account.create({
+            data: {
+                userId: req.user.id,
+                name,
+                initialBalance,
+            },
         });
-        res.status(201).json(newAccount);
+        res.status(201).json({ ...newAccount, _id: newAccount.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -53,32 +57,37 @@ const createAccount = async (req, res) => {
 // @access  Private
 const getAccountById = async (req, res) => {
     try {
-        const account = await Account.findOne({ _id: req.params.id, userId: req.user.id });
+        const account = await prisma.account.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!account) {
             return res.status(404).json({ message: 'Account not found' });
         }
 
-        // Calculate current balance and stats
-        const trades = await Trade.find({ accountId: account._id });
-        const totalPnl = trades.reduce((sum, trade) => sum + trade.pnl, 0);
+        const trades = await prisma.trade.findMany({
+            where: { accountId: account.id },
+            orderBy: { date: 'asc' },
+        });
+
+        const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
         const currentBalance = account.initialBalance + totalPnl;
 
-        // Trade statistics for chart
         let runningBalance = account.initialBalance;
-        const balanceHistory = [{ balance: account.initialBalance, date: account.createdAt }]; // Start with initial balance at creation
-        trades.forEach(trade => {
+        const balanceHistory = [{ balance: account.initialBalance, date: account.createdAt }];
+        trades.forEach((trade) => {
             runningBalance += trade.pnl;
             balanceHistory.push({ balance: runningBalance, date: trade.date });
         });
-        
-        const winningTrades = trades.filter(t => t.pnl > 0).length;
-        const losingTrades = trades.filter(t => t.pnl < 0).length;
+
+        const winningTrades = trades.filter((t) => t.pnl > 0).length;
+        const losingTrades = trades.filter((t) => t.pnl < 0).length;
         const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
         const averagePnl = trades.length > 0 ? totalPnl / trades.length : 0;
 
         res.status(200).json({
-            ...account.toObject(),
+            ...account,
+            _id: account.id,
             currentBalance,
             totalPnl,
             tradeCount: trades.length,
@@ -86,9 +95,8 @@ const getAccountById = async (req, res) => {
             losingTrades,
             winRate: winRate.toFixed(2),
             averagePnl: averagePnl.toFixed(2),
-            balanceHistory // For charting
+            balanceHistory,
         });
-
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -101,18 +109,23 @@ const updateAccount = async (req, res) => {
     const { name, initialBalance } = req.body;
 
     try {
-        const account = await Account.findOne({ _id: req.params.id, userId: req.user.id });
+        const account = await prisma.account.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!account) {
             return res.status(404).json({ message: 'Account not found' });
         }
 
-        account.name = name || account.name;
-        account.initialBalance = initialBalance !== undefined ? initialBalance : account.initialBalance;
-        account.updatedAt = Date.now();
+        const updatedAccount = await prisma.account.update({
+            where: { id: req.params.id },
+            data: {
+                name: name || account.name,
+                initialBalance: initialBalance !== undefined ? initialBalance : account.initialBalance,
+            },
+        });
 
-        const updatedAccount = await account.save();
-        res.status(200).json(updatedAccount);
+        res.status(200).json({ ...updatedAccount, _id: updatedAccount.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -123,19 +136,15 @@ const updateAccount = async (req, res) => {
 // @access  Private
 const deleteAccount = async (req, res) => {
     try {
-        const account = await Account.findOne({ _id: req.params.id, userId: req.user.id });
+        const account = await prisma.account.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!account) {
             return res.status(404).json({ message: 'Account not found' });
         }
 
-        await Account.deleteOne({ _id: req.params.id });
-        
-        // Optionally, also delete associated trades or set their accountId to null
-        // For simplicity, we'll just delete the account here. Trades will remain with dangling accountId.
-        // A more robust solution might delete trades or handle them specifically.
-        // await Trade.deleteMany({ accountId: req.params.id }); 
-
+        await prisma.account.delete({ where: { id: req.params.id } });
         res.status(200).json({ message: 'Account removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });

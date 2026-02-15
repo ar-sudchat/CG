@@ -1,15 +1,28 @@
-const Trade = require('../models/Trade');
-const Account = require('../models/Account'); // To update account balance
+const prisma = require('../lib/prisma');
 
 // @desc    Get all trades for a user
 // @route   GET /api/trades
 // @access  Private
 const getTrades = async (req, res) => {
     try {
-        const trades = await Trade.find({ userId: req.user.id })
-            .populate('accountId', 'name') // Populate account name
-            .populate('setupId', 'name');  // Populate setup name
-        res.status(200).json(trades);
+        const trades = await prisma.trade.findMany({
+            where: { userId: req.user.id },
+            include: {
+                account: { select: { id: true, name: true } },
+                setup: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // Map to match frontend expectations (_id, accountId populated, setupId populated)
+        const mapped = trades.map((t) => ({
+            ...t,
+            _id: t.id,
+            accountId: { _id: t.account.id, name: t.account.name },
+            setupId: { _id: t.setup.id, name: t.setup.name },
+        }));
+
+        res.status(200).json(mapped);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -26,55 +39,40 @@ const createTrade = async (req, res) => {
     }
 
     try {
-        // Find account and setup to ensure they exist and belong to the user
-        const account = await Account.findOne({ _id: accountId, userId: req.user.id });
-        const setup = await Account.findOne({ _id: setupId, userId: req.user.id }); // Should be Setup model, not Account
-        if (!setup) { // Corrected
-             const correctSetup = await Setup.findOne({ _id: setupId, userId: req.user.id }); // Corrected
-             if (!correctSetup) return res.status(404).json({ message: 'Setup not found or does not belong to user' }); // Corrected
-             // Use correctSetup for actual trade creation if it was successfully found
-        }
-        
+        const account = await prisma.account.findFirst({
+            where: { id: accountId, userId: req.user.id },
+        });
         if (!account) {
             return res.status(404).json({ message: 'Account not found or does not belong to user' });
         }
-        if (!setup) { // This `setup` variable here refers to the initial incorrect lookup.
-                      // Needs to be re-evaluated or use the correctSetup variable from above.
-                      // For current context, assuming `setup` is correctly passed in body
-                      // and associated in FE; we'll fix with `correctSetup`
-            const correctSetup = await Setup.findOne({ _id: setupId, userId: req.user.id });
-            if (!correctSetup) {
-                 return res.status(404).json({ message: 'Setup not found or does not belong to user' });
-            }
+
+        const setup = await prisma.setup.findFirst({
+            where: { id: setupId, userId: req.user.id },
+        });
+        if (!setup) {
+            return res.status(404).json({ message: 'Setup not found or does not belong to user' });
         }
 
-
-        const newTrade = await Trade.create({
-            userId: req.user.id,
-            accountId,
-            setupId,
-            date,
-            pair,
-            direction,
-            riskValue,
-            riskUnit,
-            pnl,
-            outcome,
-            notes,
-            entryImageDataUrl,
-            exitImageDataUrl,
-            checklistStatus: checklistStatus || false,
+        const newTrade = await prisma.trade.create({
+            data: {
+                userId: req.user.id,
+                accountId,
+                setupId,
+                date: new Date(date),
+                pair,
+                direction,
+                riskValue,
+                riskUnit,
+                pnl,
+                outcome,
+                notes: notes || null,
+                entryImageDataUrl: entryImageDataUrl || null,
+                exitImageDataUrl: exitImageDataUrl || null,
+                checklistStatus: checklistStatus || false,
+            },
         });
 
-        // Optionally update the account balance directly in the DB
-        // (Though in our frontend, balance is calculated dynamically from trades + initialBalance)
-        // If you want to store currentBalance in Account model:
-        /*
-        account.currentBalance += pnl; // Assuming a 'currentBalance' field in Account model
-        await account.save();
-        */
-
-        res.status(201).json(newTrade);
+        res.status(201).json({ ...newTrade, _id: newTrade.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -85,57 +83,62 @@ const createTrade = async (req, res) => {
 // @access  Private
 const getTradeById = async (req, res) => {
     try {
-        const trade = await Trade.findOne({ _id: req.params.id, userId: req.user.id })
-            .populate('accountId', 'name')
-            .populate('setupId', 'name description checklist psychologyChecklist');
+        const trade = await prisma.trade.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+            include: {
+                account: { select: { id: true, name: true } },
+                setup: { select: { id: true, name: true, description: true, checklist: true, psychologyChecklist: true } },
+            },
+        });
 
         if (!trade) {
             return res.status(404).json({ message: 'Trade not found' });
         }
-        res.status(200).json(trade);
+
+        res.status(200).json({
+            ...trade,
+            _id: trade.id,
+            accountId: { _id: trade.account.id, name: trade.account.name },
+            setupId: { _id: trade.setup.id, name: trade.setup.name, description: trade.setup.description, checklist: trade.setup.checklist, psychologyChecklist: trade.setup.psychologyChecklist },
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Update a trade (Less common for trade journals, but included for completeness)
+// @desc    Update a trade
 // @route   PUT /api/trades/:id
 // @access  Private
 const updateTrade = async (req, res) => {
     const { date, pair, direction, riskValue, riskUnit, pnl, outcome, notes, entryImageDataUrl, exitImageDataUrl, checklistStatus } = req.body;
 
     try {
-        const trade = await Trade.findOne({ _id: req.params.id, userId: req.user.id });
+        const trade = await prisma.trade.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!trade) {
             return res.status(404).json({ message: 'Trade not found' });
         }
 
-        // Before updating P&L, revert old P&L from account and apply new one
-        // (Only if you're storing currentBalance directly in Account model)
-        /*
-        const account = await Account.findById(trade.accountId);
-        if (account) {
-            account.currentBalance -= trade.pnl; // Revert old
-            account.currentBalance += pnl;       // Apply new
-            await account.save();
-        }
-        */
+        const updatedTrade = await prisma.trade.update({
+            where: { id: req.params.id },
+            data: {
+                date: date ? new Date(date) : trade.date,
+                pair: pair || trade.pair,
+                direction: direction || trade.direction,
+                riskValue: riskValue !== undefined ? riskValue : trade.riskValue,
+                riskUnit: riskUnit || trade.riskUnit,
+                pnl: pnl !== undefined ? pnl : trade.pnl,
+                outcome: outcome || trade.outcome,
+                notes: notes !== undefined ? notes : trade.notes,
+                entryImageDataUrl: entryImageDataUrl !== undefined ? entryImageDataUrl : trade.entryImageDataUrl,
+                exitImageDataUrl: exitImageDataUrl !== undefined ? exitImageDataUrl : trade.exitImageDataUrl,
+                checklistStatus: checklistStatus !== undefined ? checklistStatus : trade.checklistStatus,
+            },
+        });
 
-        trade.date = date || trade.date;
-        trade.pair = pair || trade.pair;
-        trade.direction = direction || trade.direction;
-        trade.riskValue = riskValue !== undefined ? riskValue : trade.riskValue;
-        trade.riskUnit = riskUnit || trade.riskUnit;
-        trade.pnl = pnl !== undefined ? pnl : trade.pnl;
-        trade.outcome = outcome || trade.outcome;
-        trade.notes = notes !== undefined ? notes : trade.notes;
-        trade.entryImageDataUrl = entryImageDataUrl !== undefined ? entryImageDataUrl : trade.entryImageDataUrl;
-        trade.exitImageDataUrl = exitImageDataUrl !== undefined ? exitImageDataUrl : trade.exitImageDataUrl;
-        trade.checklistStatus = checklistStatus !== undefined ? checklistStatus : trade.checklistStatus;
-
-        const updatedTrade = await trade.save();
-        res.status(200).json(updatedTrade);
+        res.status(200).json({ ...updatedTrade, _id: updatedTrade.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -146,22 +149,15 @@ const updateTrade = async (req, res) => {
 // @access  Private
 const deleteTrade = async (req, res) => {
     try {
-        const trade = await Trade.findOne({ _id: req.params.id, userId: req.user.id });
+        const trade = await prisma.trade.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!trade) {
             return res.status(404).json({ message: 'Trade not found' });
         }
 
-        // Revert P&L from account balance (Only if you're storing currentBalance directly in Account model)
-        /*
-        const account = await Account.findById(trade.accountId);
-        if (account) {
-            account.currentBalance -= trade.pnl;
-            await account.save();
-        }
-        */
-
-        await Trade.deleteOne({ _id: req.params.id });
+        await prisma.trade.delete({ where: { id: req.params.id } });
         res.status(200).json({ message: 'Trade removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });

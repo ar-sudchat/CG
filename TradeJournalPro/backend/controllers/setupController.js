@@ -1,12 +1,14 @@
-const Setup = require('../models/Setup');
+const prisma = require('../lib/prisma');
 
 // @desc    Get all setups for a user
 // @route   GET /api/setups
 // @access  Private
 const getSetups = async (req, res) => {
     try {
-        const setups = await Setup.find({ userId: req.user.id });
-        res.status(200).json(setups);
+        const setups = await prisma.setup.findMany({
+            where: { userId: req.user.id },
+        });
+        res.status(200).json(setups.map((s) => ({ ...s, _id: s.id })));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -23,14 +25,16 @@ const createSetup = async (req, res) => {
     }
 
     try {
-        const newSetup = await Setup.create({
-            userId: req.user.id,
-            name,
-            description,
-            checklist: checklist || [],
-            psychologyChecklist: psychologyChecklist || [],
+        const newSetup = await prisma.setup.create({
+            data: {
+                userId: req.user.id,
+                name,
+                description: description || null,
+                checklist: checklist || [],
+                psychologyChecklist: psychologyChecklist || [],
+            },
         });
-        res.status(201).json(newSetup);
+        res.status(201).json({ ...newSetup, _id: newSetup.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -41,12 +45,14 @@ const createSetup = async (req, res) => {
 // @access  Private
 const getSetupById = async (req, res) => {
     try {
-        const setup = await Setup.findOne({ _id: req.params.id, userId: req.user.id });
+        const setup = await prisma.setup.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!setup) {
             return res.status(404).json({ message: 'Setup not found' });
         }
-        res.status(200).json(setup);
+        res.status(200).json({ ...setup, _id: setup.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -59,20 +65,25 @@ const updateSetup = async (req, res) => {
     const { name, description, checklist, psychologyChecklist } = req.body;
 
     try {
-        const setup = await Setup.findOne({ _id: req.params.id, userId: req.user.id });
+        const setup = await prisma.setup.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!setup) {
             return res.status(404).json({ message: 'Setup not found' });
         }
 
-        setup.name = name || setup.name;
-        setup.description = description !== undefined ? description : setup.description;
-        setup.checklist = checklist !== undefined ? checklist : setup.checklist;
-        setup.psychologyChecklist = psychologyChecklist !== undefined ? psychologyChecklist : setup.psychologyChecklist;
-        setup.updatedAt = Date.now();
+        const updatedSetup = await prisma.setup.update({
+            where: { id: req.params.id },
+            data: {
+                name: name || setup.name,
+                description: description !== undefined ? description : setup.description,
+                checklist: checklist !== undefined ? checklist : setup.checklist,
+                psychologyChecklist: psychologyChecklist !== undefined ? psychologyChecklist : setup.psychologyChecklist,
+            },
+        });
 
-        const updatedSetup = await setup.save();
-        res.status(200).json(updatedSetup);
+        res.status(200).json({ ...updatedSetup, _id: updatedSetup.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -83,16 +94,15 @@ const updateSetup = async (req, res) => {
 // @access  Private
 const deleteSetup = async (req, res) => {
     try {
-        const setup = await Setup.findOne({ _id: req.params.id, userId: req.user.id });
+        const setup = await prisma.setup.findFirst({
+            where: { id: req.params.id, userId: req.user.id },
+        });
 
         if (!setup) {
             return res.status(404).json({ message: 'Setup not found' });
         }
 
-        await Setup.deleteOne({ _id: req.params.id });
-        // Optionally, also delete associated trades or handle them specifically
-        // await Trade.deleteMany({ setupId: req.params.id }); 
-        
+        await prisma.setup.delete({ where: { id: req.params.id } });
         res.status(200).json({ message: 'Setup removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });

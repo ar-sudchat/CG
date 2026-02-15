@@ -676,9 +676,29 @@ const MainScreen = () => {
           <Text style={currentStyles.gridItemCount}>{tradesCount} {t('items')}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigateTo('Accounts')} style={currentStyles.gridItem}>
-          <Text style={[currentStyles.gridItemIcon, { color: '#a78bfa' }]}>💳</Text> {/* Purple icon */}
+          <Text style={[currentStyles.gridItemIcon, { color: '#a78bfa' }]}>💳</Text>
           <Text style={currentStyles.gridItemTitle}>{t('menu_accounts')}</Text>
           <Text style={currentStyles.gridItemCount}>{accountsCount} {t('items')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigateTo('LivePrices')} style={currentStyles.gridItem}>
+          <Text style={[currentStyles.gridItemIcon, { color: '#f59e0b' }]}>📊</Text>
+          <Text style={currentStyles.gridItemTitle}>{t('menu_live_prices')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigateTo('Alerts')} style={currentStyles.gridItem}>
+          <Text style={[currentStyles.gridItemIcon, { color: '#ef4444' }]}>🔔</Text>
+          <Text style={currentStyles.gridItemTitle}>{t('menu_alerts')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigateTo('Analysis')} style={currentStyles.gridItem}>
+          <Text style={[currentStyles.gridItemIcon, { color: '#10b981' }]}>📉</Text>
+          <Text style={currentStyles.gridItemTitle}>{t('menu_analysis')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigateTo('AiAnalysis', { symbol: 'OANDA:EUR_USD', displaySymbol: 'EUR/USD', resolution: '60' })} style={currentStyles.gridItem}>
+          <Text style={[currentStyles.gridItemIcon, { color: '#7c3aed' }]}>🤖</Text>
+          <Text style={currentStyles.gridItemTitle}>{t('menu_ai_analysis')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigateTo('KnowledgeBase')} style={currentStyles.gridItem}>
+          <Text style={[currentStyles.gridItemIcon, { color: '#06b6d4' }]}>📚</Text>
+          <Text style={currentStyles.gridItemTitle}>{t('menu_knowledge')}</Text>
         </TouchableOpacity>
       </View>
 

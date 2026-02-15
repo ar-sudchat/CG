@@ -18,12 +18,22 @@ import NewTradeScreen from './screens/NewTradeScreen';
 import SelectSetupScreen from './screens/SelectSetupScreen';
 import ChecklistScreen from './screens/ChecklistScreen';
 
+// Import new screens for Forex & SMC/ICT Analysis
+import LivePricesScreen from './screens/LivePricesScreen';
+import PairDetailScreen from './screens/PairDetailScreen';
+import AlertsScreen from './screens/AlertsScreen';
+import NewAlertScreen from './screens/NewAlertScreen';
+import AiAnalysisScreen from './screens/AiAnalysisScreen';
+import KnowledgeBaseScreen from './screens/KnowledgeBaseScreen';
+import AnalysisScreen from './screens/AnalysisScreen';
+
 // Import Auth screens
 import LoginScreen from './screens/Auth/LoginScreen';
 import RegisterScreen from './screens/Auth/RegisterScreen';
 
 // Import AppContext
 import { AppContext, AppProvider } from './context/AppContext';
+import { SocketProvider } from './context/SocketContext';
 
 // --- Stylesheets for Dark and Light Modes (ควรย้ายไปไฟล์แยก หรือรวมใน App.js ถ้ายังไม่ได้แยก) ---
 // เนื่องจากโค้ดสไตล์ค่อนข้างยาว ฉันจะละไว้ที่นี่ แต่คุณควรนำมาจาก App.js เดิมของคุณ
@@ -59,6 +69,13 @@ const AppStackScreens = () => (
     <AppStack.Screen name="NewTrade" component={NewTradeScreen} />
     <AppStack.Screen name="SelectSetup" component={SelectSetupScreen} />
     <AppStack.Screen name="Checklist" component={ChecklistScreen} />
+    <AppStack.Screen name="LivePrices" component={LivePricesScreen} />
+    <AppStack.Screen name="PairDetail" component={PairDetailScreen} />
+    <AppStack.Screen name="Alerts" component={AlertsScreen} />
+    <AppStack.Screen name="NewAlert" component={NewAlertScreen} />
+    <AppStack.Screen name="AiAnalysis" component={AiAnalysisScreen} />
+    <AppStack.Screen name="KnowledgeBase" component={KnowledgeBaseScreen} />
+    <AppStack.Screen name="Analysis" component={AnalysisScreen} />
   </AppStack.Navigator>
 );
 
@@ -73,7 +90,8 @@ const App = () => {
   const RootStack = createStackNavigator();
 
   return (
-    <AppProvider> {/* AppProvider จะครอบ NavigationContainer */}
+    <AppProvider>
+      <SocketProvider>
       <NavigationContainer>
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
           {/* ตรวจสอบสถานะการล็อกอินที่นี่ในแอปจริง */}
@@ -88,6 +106,7 @@ const App = () => {
           <RootStack.Screen name="App" component={AppStackScreens} />
         </RootStack.Navigator>
       </NavigationContainer>
+      </SocketProvider>
     </AppProvider>
   );
 };

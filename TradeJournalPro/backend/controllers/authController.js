@@ -1,11 +1,10 @@
-const User = require('../models/User');
+const prisma = require('../lib/prisma');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Generate JWT
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '1d', // Token expires in 1 day
+        expiresIn: '1d',
     });
 };
 
@@ -20,30 +19,29 @@ const registerUser = async (req, res) => {
     }
 
     try {
-        // Check if user exists
-        const userExists = await User.findOne({ username });
+        const userExists = await prisma.user.findUnique({ where: { username } });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Create user
-        const user = await User.create({
-            username,
-            email,
-            password,
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const user = await prisma.user.create({
+            data: {
+                username,
+                email: email || null,
+                password: hashedPassword,
+            },
         });
 
-        if (user) {
-            res.status(201).json({
-                _id: user._id,
-                username: user.username,
-                email: user.email,
-                token: generateToken(user._id),
-                preferences: user.preferences
-            });
-        } else {
-            res.status(400).json({ message: 'Invalid user data' });
-        }
+        res.status(201).json({
+            _id: user.id,
+            username: user.username,
+            email: user.email,
+            token: generateToken(user.id),
+            preferences: { theme: user.theme, language: user.language },
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -56,16 +54,15 @@ const loginUser = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Check for user by username
-        const user = await User.findOne({ username });
+        const user = await prisma.user.findUnique({ where: { username } });
 
-        if (user && (await user.matchPassword(password))) {
+        if (user && (await bcrypt.compare(password, user.password))) {
             res.json({
-                _id: user._id,
+                _id: user.id,
                 username: user.username,
                 email: user.email,
-                token: generateToken(user._id),
-                preferences: user.preferences
+                token: generateToken(user.id),
+                preferences: { theme: user.theme, language: user.language },
             });
         } else {
             res.status(401).json({ message: 'Invalid credentials' });
@@ -75,37 +72,28 @@ const loginUser = async (req, res) => {
     }
 };
 
-// @desc    Get user profile (and preferences)
+// @desc    Get user profile
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
     try {
-        // req.user is set by authMiddleware
-        const user = await User.findById(req.user.id).select('-password');
-        if (user) {
-            res.json(user);
-        } else {
-            res.status(404).json({ message: 'User not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Update user preferences (theme, language)
-// @route   PUT /api/auth/preferences
-// @access  Private
-const updatePreferences = async (req, res) => {
-    const { theme, language } = req.body;
-    try {
-        const user = await User.findById(req.user.id);
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                theme: true,
+                language: true,
+                createdAt: true,
+            },
+        });
 
         if (user) {
-            user.preferences.theme = theme || user.preferences.theme;
-            user.preferences.language = language || user.preferences.language;
-            const updatedUser = await user.save();
             res.json({
-                preferences: updatedUser.preferences
+                ...user,
+                _id: user.id,
+                preferences: { theme: user.theme, language: user.language },
             });
         } else {
             res.status(404).json({ message: 'User not found' });
@@ -115,9 +103,31 @@ const updatePreferences = async (req, res) => {
     }
 };
 
+// @desc    Update user preferences
+// @route   PUT /api/auth/preferences
+// @access  Private
+const updatePreferences = async (req, res) => {
+    const { theme, language } = req.body;
+    try {
+        const user = await prisma.user.update({
+            where: { id: req.user.id },
+            data: {
+                ...(theme && { theme }),
+                ...(language && { language }),
+            },
+        });
+
+        res.json({
+            preferences: { theme: user.theme, language: user.language },
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
     getMe,
-    updatePreferences
+    updatePreferences,
 };

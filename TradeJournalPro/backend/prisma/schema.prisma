@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String
+  email       String?
+  theme       String   @default("dark")
+  language    String   @default("th")
+  createdAt   DateTime @default(now())
+
+  accounts      Account[]
+  setups        Setup[]
+  trades        Trade[]
+  priceAlerts   PriceAlert[]
+  knowledgeDocs KnowledgeDoc[]
+}
+
+model Account {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  initialBalance Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId])
+}
+
+model Setup {
+  id                  String   @id @default(uuid())
+  userId              String
+  name                String
+  description         String?
+  checklist           String[] @default([])
+  psychologyChecklist String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId])
+}
+
+model Trade {
+  id                String   @id @default(uuid())
+  userId            String
+  accountId         String
+  setupId           String
+  date              DateTime
+  pair              String
+  direction         String
+  riskValue         Float
+  riskUnit          String
+  pnl               Float
+  outcome           String
+  notes             String?
+  entryImageDataUrl String?  @db.Text
+  exitImageDataUrl  String?  @db.Text
+  checklistStatus   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  setup   Setup   @relation(fields: [setupId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([setupId])
+}
+
+model ForexPrice {
+  id            String   @id @default(uuid())
+  symbol        String
+  displaySymbol String
+  price         Float
+  bid           Float?
+  ask           Float?
+  spread        Float?
+  volume        Float?
+  timestamp     DateTime
+  source        String   @default("finnhub")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([symbol, timestamp(sort: Desc)])
+  @@index([timestamp])
+}
+
+model ForexCandle {
+  id            String   @id @default(uuid())
+  symbol        String
+  displaySymbol String?
+  resolution    String
+  open          Float
+  high          Float
+  low           Float
+  close         Float
+  volume        Float?
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([symbol, resolution, timestamp])
+  @@index([symbol, resolution, timestamp(sort: Desc)])
+}
+
+model PriceAlert {
+  id             String    @id @default(uuid())
+  userId         String
+  symbol         String
+  displaySymbol  String?
+  alertType      String
+  targetPrice    Float?
+  maType         String?
+  maPeriodFast   Int?
+  maPeriodSlow   Int?
+  crossDirection String?
+  rsiPeriod      Int       @default(14)
+  rsiThreshold   Float?
+  isActive       Boolean   @default(true)
+  isTriggered    Boolean   @default(false)
+  triggeredAt    DateTime?
+  lastCheckedAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive, isTriggered])
+}
+
+model SmcPattern {
+  id             String    @id @default(uuid())
+  symbol         String
+  displaySymbol  String?
+  resolution     String
+  patternType    String
+  priceHigh      Float
+  priceLow       Float
+  timestamp      DateTime
+  endTimestamp   DateTime?
+  isValid        Boolean   @default(true)
+  isMitigated    Boolean   @default(false)
+  mitigatedAt    DateTime?
+  swingHighPrice Float?
+  swingLowPrice  Float?
+  fibLevel       Float?
+  impulseLegSize Float?
+  candleIndex    Int?
+  createdAt      DateTime  @default(now())
+
+  @@index([symbol, resolution, patternType, timestamp(sort: Desc)])
+}
+
+model KnowledgeDoc {
+  id            String   @id @default(uuid())
+  userId        String
+  filename      String
+  originalName  String
+  filePath      String
+  fileType      String
+  fileSize      Int?
+  extractedText String   @default("") @db.Text
+  category      String   @default("general")
+  description   String?
+  isProcessed   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
