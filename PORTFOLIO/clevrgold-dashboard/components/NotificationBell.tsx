@@ -78,8 +78,8 @@ export default function NotificationBell() {
         });
       }
 
-      // Warning: margin level < 5000% and has orders
-      if (acc.margin_level > 0 && acc.margin_level < 5000 && acc.open_orders > 0) {
+      // Warning: margin level < 1000% and has orders
+      if (acc.margin_level > 0 && acc.margin_level < 1000 && acc.open_orders > 0) {
         items.push({
           level: 'warning',
           account_number: acc.account_number,

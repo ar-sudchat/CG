@@ -40,7 +40,8 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
   const hasOrders = totalOrders > 0;
   const floatIsLoss = account.floating_pnl < 0;
   const floatIsBigLoss = account.floating_pnl < -10;
-  const lowMargin = account.margin_level > 0 && account.margin_level < 5000 && hasOrders;
+  const lowMargin = account.margin_level > 0 && account.margin_level < 500 && hasOrders;
+  const warnMargin = account.margin_level > 0 && account.margin_level < 1000 && !lowMargin && hasOrders;
 
   // Determine card border/glow based on severity
   const cardBorder = isAW
@@ -49,7 +50,9 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
       ? 'border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
       : lowMargin
         ? 'border-orange-500/40'
-        : hasOrders && floatIsLoss
+        : warnMargin
+          ? 'border-yellow-500/30'
+          : hasOrders && floatIsLoss
           ? 'border-orange-500/25'
           : hasOrders
             ? 'border-green-500/25'
@@ -220,7 +223,12 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
                 LOW MARGIN
               </span>
             )}
-            {hasOrders && !lowMargin && (
+            {warnMargin && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400">
+                MARGIN {formatMarginLevel(account.margin_level)}
+              </span>
+            )}
+            {hasOrders && !lowMargin && !warnMargin && (
               <span className="text-xs text-[var(--text-secondary)] font-mono">
                 Margin: {formatMarginLevel(account.margin_level)}
               </span>
