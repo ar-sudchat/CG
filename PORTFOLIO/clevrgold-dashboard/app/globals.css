@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark theme */
+:root {
+  --bg-primary: #0a0e17;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2332;
+  --bg-input: #0a0e17;
+  --border: #1e2a3a;
+  --text-primary: #e2e8f0;
+  --text-heading: #f1f5f9;
+  --text-body: #cbd5e1;
+  --text-secondary: #64748b;
+  --text-dim: #475569;
+  --text-muted: #334155;
+  --bar-track: #1e2a3a;
+  --avatar-bg: #1a2332;
+  --green: #22c55e;
+  --green-dim: #16a34a33;
+  --red: #ef4444;
+  --red-dim: #ef444433;
+  --gold: #eab308;
+  --blue: #3b82f6;
+  --orange: #f97316;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Monospace for numbers */
+.font-mono {
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3a4a;
+}
+
+/* AW border-only pulse — easy on the eyes */
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.05);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.7);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+  }
+}
+
+.animate-border-pulse {
+  animation: border-pulse 2.5s ease-in-out infinite;
+}
+
+/* Bell shake for critical alerts */
+@keyframes bell {
+  0%, 100% { transform: rotate(0); }
+  10% { transform: rotate(12deg); }
+  20% { transform: rotate(-10deg); }
+  30% { transform: rotate(8deg); }
+  40% { transform: rotate(-6deg); }
+  50% { transform: rotate(0); }
+}
+
+/* Date input — show calendar icon on dark theme */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+/* Select styling */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
