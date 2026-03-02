@@ -35,9 +35,9 @@ export async function GET(
       );
     }
 
-    // Fetch the target account's pair_group
+    // Fetch the target account's pair_group + manual_lock
     const targetRows = await sql`
-      SELECT a.account_number, a.pair_group
+      SELECT a.account_number, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock
       FROM accounts a
       WHERE a.account_number = ${accountNumber} AND a.is_active = TRUE
     `;
@@ -51,8 +51,10 @@ export async function GET(
 
     const pairGroup = targetRows[0].pair_group;
 
-    // No pair group = never locked
-    if (!pairGroup) {
+    const manualLock = targetRows[0].manual_lock === true;
+
+    // No pair group & no manual lock = never locked
+    if (!pairGroup && !manualLock) {
       return NextResponse.json({
         account_number: accountNumber,
         is_locked: false,
@@ -63,9 +65,22 @@ export async function GET(
       }, { headers });
     }
 
+    // Manual lock without pair group
+    if (!pairGroup && manualLock) {
+      return NextResponse.json({
+        account_number: accountNumber,
+        is_locked: true,
+        lock_reason: 'Manual lock',
+        lock_reasons: ['Manual lock'],
+        locked_by: null,
+        pair_group: null,
+        timestamp: new Date().toISOString(),
+      }, { headers });
+    }
+
     // Fetch all accounts in the same pair group with snapshots
     const pairRows = await sql`
-      SELECT a.account_number, a.pair_group,
+      SELECT a.account_number, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
              COALESCE(s.aw_orders, 0) as aw_orders,
              COALESCE(s.open_orders, 0) as open_orders,
              COALESCE(s.floating_pnl, 0) as floating_pnl
@@ -80,6 +95,7 @@ export async function GET(
       aw_orders: Number(r.aw_orders) || 0,
       open_orders: Number(r.open_orders) || 0,
       floating_pnl: Number(r.floating_pnl) || 0,
+      manual_lock: r.manual_lock === true,
     }));
 
     const target = allAccounts.find((a) => a.account_number === accountNumber)!;

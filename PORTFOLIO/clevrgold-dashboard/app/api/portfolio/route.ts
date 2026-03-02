@@ -13,7 +13,7 @@ export async function GET() {
     const rows = auth.accountFilter === null
       ? await sql`
         SELECT
-          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group,
+          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -25,7 +25,7 @@ export async function GET() {
       `
       : await sql`
         SELECT
-          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group,
+          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -146,6 +146,7 @@ export async function GET() {
         avatar_text: r.avatar_text || '',
         ea_strategy: r.ea_strategy || '',
         pair_group: r.pair_group || '',
+        manual_lock: r.manual_lock === true,
         initial_deposit: Number(r.initial_deposit) || 0,
         balance,
         equity,

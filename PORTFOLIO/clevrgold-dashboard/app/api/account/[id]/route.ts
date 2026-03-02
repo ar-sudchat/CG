@@ -32,7 +32,7 @@ export async function GET(
     const accountRows = await sql`
       SELECT
         a.account_number, a.name, a.owner, a.initial_deposit, a.server, a.is_active,
-        a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.description, a.broker, a.leverage, a.account_type, a.currency, a.notes,
+        a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock, a.description, a.broker, a.leverage, a.account_type, a.currency, a.notes,
         s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
         s.margin_level, s.daily_pnl, s.weekly_pnl,
         s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -207,6 +207,7 @@ export async function GET(
         avatar_text: r.avatar_text || '',
         ea_strategy: r.ea_strategy || '',
         pair_group: r.pair_group || '',
+        manual_lock: r.manual_lock === true,
         description: r.description || '',
         broker: r.broker || '',
         leverage: r.leverage || '',

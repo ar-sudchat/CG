@@ -13,6 +13,7 @@ export interface AccountForLock {
   aw_orders: number;
   open_orders: number;
   floating_pnl: number;
+  manual_lock?: boolean;
 }
 
 /**
@@ -29,6 +30,16 @@ export function computeLockStatus(
     lock_reasons: [],
     locked_by: null,
   };
+
+  // Manual lock — highest priority
+  if (account.manual_lock) {
+    return {
+      is_locked: true,
+      lock_reason: 'Manual lock',
+      lock_reasons: ['Manual lock'],
+      locked_by: null,
+    };
+  }
 
   if (!account.pair_group) return unlocked;
 
