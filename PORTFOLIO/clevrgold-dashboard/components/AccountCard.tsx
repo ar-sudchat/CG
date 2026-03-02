@@ -48,9 +48,7 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
   const isLocked = account.is_locked === true;
 
   // Determine card border/glow based on severity
-  const cardBorder = isLocked
-    ? 'border-purple-500/50 shadow-[0_0_15px_rgba(147,51,234,0.15)]'
-    : isAW
+  const cardBorder = isAW
     ? 'border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
     : floatIsBigLoss
       ? 'border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
@@ -70,15 +68,14 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
         className={cn(
           'bg-[var(--bg-card)] rounded-xl border p-4 transition-all hover:bg-[var(--bg-card-hover)] cursor-pointer relative overflow-hidden',
           cardBorder,
-          isAW && 'animate-border-pulse',
-          isLocked && 'animate-lock-pulse'
+          isAW && 'animate-border-pulse'
         )}
       >
         {/* Alert banner at top of card */}
-        {(isLocked || isAW || floatIsBigLoss || lowMargin) && (
+        {(isAW || floatIsBigLoss || lowMargin) && (
           <div className={cn(
             'absolute top-0 left-0 right-0 h-0.5',
-            isLocked ? 'bg-purple-500' : isAW ? 'bg-red-500' : floatIsBigLoss ? 'bg-red-500/70' : 'bg-orange-500'
+            isAW ? 'bg-red-500' : floatIsBigLoss ? 'bg-red-500/70' : 'bg-orange-500'
           )} />
         )}
 
