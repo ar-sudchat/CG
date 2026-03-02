@@ -106,6 +106,14 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
                     {account.ea_strategy === 'trend' ? 'TREND' : 'COUNTER'}
                   </span>
                 )}
+                {isLocked && (
+                  <span className="inline-flex items-center p-0.5 rounded bg-purple-500/20 text-purple-400" title="LOCKED">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  </span>
+                )}
               </div>
               {account.owner && (
                 <div className="text-[10px] text-[var(--text-secondary)] truncate max-w-[160px]">{account.owner}</div>
@@ -113,14 +121,6 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {isLocked && (
-              <span className="inline-flex items-center p-1 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30" title="LOCKED">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-              </span>
-            )}
             <StatusBadge
               mode={account.mode}
               orders={account.open_orders}
