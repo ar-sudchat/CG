@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql, { MT4_TZ } from '@/lib/db';
 import { getSessionAndAccounts } from '@/lib/auth';
+import { computeAllLockStatuses } from '@/lib/lock';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,8 +169,21 @@ export async function GET() {
       };
     });
 
+    // Compute lock status for all accounts
+    const lockMap = computeAllLockStatuses(accounts);
+    const accountsWithLock = accounts.map((a) => {
+      const lock = lockMap.get(a.account_number);
+      return {
+        ...a,
+        is_locked: lock?.is_locked ?? false,
+        lock_reason: lock?.lock_reason ?? null,
+        locked_by: lock?.locked_by ?? null,
+      };
+    });
+
     // Unique owners list for filter
     const owners = Array.from(new Set(accounts.map((a) => a.owner).filter(Boolean))).sort();
+    const lockedCount = accountsWithLock.filter((a) => a.is_locked).length;
 
     return NextResponse.json({
       total_balance: totalBalance,
@@ -180,10 +194,11 @@ export async function GET() {
       total_monthly: totalMonthly,
       total_orders: totalOrders,
       aw_active: awActive,
+      locked_count: lockedCount,
       account_count: accounts.length,
       is_weekend: isWeekend,
       owners,
-      accounts,
+      accounts: accountsWithLock,
     }, {
       headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
     });

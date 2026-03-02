@@ -267,6 +267,7 @@ export default function PortfolioPage() {
                     const pd = pair.reduce((s: number, a: any) => s + a.daily_pnl, 0);
                     const po = pair.reduce((s: number, a: any) => s + a.open_orders + a.aw_orders, 0);
                     const aw = pair.some((a: any) => a.aw_orders > 0);
+                    const locked = pair.some((a: any) => a.is_locked);
 
                     return (
                       <div key={pg}>
@@ -275,6 +276,11 @@ export default function PortfolioPage() {
                           <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/25">
                             {pg}
                           </span>
+                          {locked && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                              LOCK
+                            </span>
+                          )}
                           <div className="flex-1 h-px bg-[var(--border)]" />
                           {po > 0 ? (
                             <span className={cn(

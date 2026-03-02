@@ -71,6 +71,22 @@ body {
   animation: border-pulse 2.5s ease-in-out infinite;
 }
 
+/* Lock state — slow subtle purple pulse */
+@keyframes lock-pulse {
+  0%, 100% {
+    border-color: rgba(147, 51, 234, 0.25);
+    box-shadow: 0 0 6px rgba(147, 51, 234, 0.05);
+  }
+  50% {
+    border-color: rgba(147, 51, 234, 0.5);
+    box-shadow: 0 0 12px rgba(147, 51, 234, 0.1);
+  }
+}
+
+.animate-lock-pulse {
+  animation: lock-pulse 3s ease-in-out infinite;
+}
+
 /* Bell shake for critical alerts */
 @keyframes bell {
   0%, 100% { transform: rotate(0); }

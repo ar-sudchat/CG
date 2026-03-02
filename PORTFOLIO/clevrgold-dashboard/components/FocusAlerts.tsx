@@ -16,6 +16,9 @@ interface Account {
   mode: string;
   margin_level: number;
   is_offline?: boolean;
+  is_locked?: boolean;
+  lock_reason?: string | null;
+  locked_by?: number | null;
 }
 
 interface FocusAlertsProps {
@@ -35,6 +38,16 @@ export default function FocusAlerts({ accounts }: FocusAlertsProps) {
   const items: FocusItem[] = [];
 
   accounts.forEach((acc) => {
+    // Warning: Account LOCKED by pair
+    if (acc.is_locked && acc.locked_by) {
+      items.push({
+        level: 'warning',
+        account_number: acc.account_number,
+        message: `LOCKED — Waiting for #${acc.locked_by}`,
+        detail: acc.lock_reason || 'Pair active',
+      });
+    }
+
     // Critical: AW mode
     if (acc.aw_orders > 0 || acc.mode === 'AW') {
       items.push({
