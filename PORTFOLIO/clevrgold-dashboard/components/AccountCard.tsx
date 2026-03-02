@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { cn, formatMoney, formatMoneyShort, formatPnl, formatPnlShort, formatMarginLevel, pnlColor, pnlBgColor, WEEKLY_TARGET_USD, timeAgoFromSeconds } from '@/lib/utils';
+import { cn, formatMoneyShort, formatPnl, formatPnlShort, formatMarginLevel, pnlColor, pnlBgColor, WEEKLY_TARGET_USD, timeAgoFromSeconds } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import StatusBadge from './StatusBadge';
 
