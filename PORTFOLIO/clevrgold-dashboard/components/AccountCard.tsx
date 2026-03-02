@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { cn, formatMoney, formatPnl, formatMarginLevel, pnlColor, pnlBgColor, DAILY_TARGET_USD, WEEKLY_TARGET_USD, timeAgoFromSeconds } from '@/lib/utils';
+import { cn, formatMoney, formatMoneyShort, formatPnl, formatPnlShort, formatMarginLevel, pnlColor, pnlBgColor, WEEKLY_TARGET_USD, timeAgoFromSeconds } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import StatusBadge from './StatusBadge';
 
@@ -174,56 +174,46 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
           </div>
         )}
 
-        {/* Balance / Equity */}
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        {/* Balance / Equity / Daily */}
+        <div className="grid grid-cols-3 gap-3 mb-3">
           <div>
             <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">Balance</div>
             <div className="font-mono text-sm text-[var(--text-body)] font-semibold">
-              {formatMoney(convert(account.balance), symbol)}
+              {formatMoneyShort(convert(account.balance), symbol)}
             </div>
           </div>
           <div>
             <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">Equity</div>
             <div className="font-mono text-sm text-[var(--text-body)] font-semibold">
-              {formatMoney(convert(account.equity), symbol)}
+              {formatMoneyShort(convert(account.equity), symbol)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">Daily</div>
+            <div className={cn('font-mono text-sm font-semibold', pnlColor(account.daily_pnl))}>
+              {formatPnlShort(convert(account.daily_pnl), symbol)}
             </div>
           </div>
         </div>
 
-        {/* Daily & Weekly Target — compact inline */}
-        <div className="mb-3 space-y-1.5">
+        {/* Weekly Target */}
+        <div className="mb-3">
           {(() => {
-            const dPct = DAILY_TARGET_USD > 0 ? Math.min((account.daily_pnl / DAILY_TARGET_USD) * 100, 100) : 0;
-            const dHit = account.daily_pnl >= DAILY_TARGET_USD;
             const wPct = WEEKLY_TARGET_USD > 0 ? Math.min((account.weekly_pnl / WEEKLY_TARGET_USD) * 100, 100) : 0;
             const wHit = account.weekly_pnl >= WEEKLY_TARGET_USD;
             return (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] text-[var(--text-dim)] uppercase w-10 shrink-0">Daily</span>
-                  <div className="flex-1 h-1 bg-[var(--bar-track)] rounded-full overflow-hidden">
-                    <div
-                      className={cn('h-full rounded-full transition-all duration-500', dHit ? 'bg-green-500/70' : dPct > 0 ? 'bg-slate-500/50' : 'bg-transparent')}
-                      style={{ width: `${Math.max(dPct, 0)}%` }}
-                    />
-                  </div>
-                  <span className={cn('font-mono text-[10px] w-16 text-right', dHit ? 'text-green-500' : 'text-[var(--text-dim)]')}>
-                    {formatPnl(convert(account.daily_pnl), symbol)}
-                  </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-[var(--text-dim)] uppercase w-10 shrink-0">Weekly</span>
+                <div className="flex-1 h-1 bg-[var(--bar-track)] rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all duration-500', wHit ? 'bg-green-500/70' : wPct > 0 ? 'bg-slate-500/50' : 'bg-transparent')}
+                    style={{ width: `${Math.max(wPct, 0)}%` }}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] text-[var(--text-dim)] uppercase w-10 shrink-0">Weekly</span>
-                  <div className="flex-1 h-1 bg-[var(--bar-track)] rounded-full overflow-hidden">
-                    <div
-                      className={cn('h-full rounded-full transition-all duration-500', wHit ? 'bg-green-500/70' : wPct > 0 ? 'bg-slate-500/50' : 'bg-transparent')}
-                      style={{ width: `${Math.max(wPct, 0)}%` }}
-                    />
-                  </div>
-                  <span className={cn('font-mono text-[10px] w-16 text-right', wHit ? 'text-green-500' : 'text-[var(--text-dim)]')}>
-                    {formatPnl(convert(account.weekly_pnl), symbol)}
-                  </span>
-                </div>
-              </>
+                <span className={cn('font-mono text-[10px] w-16 text-right', wHit ? 'text-green-500' : 'text-[var(--text-dim)]')}>
+                  {formatPnl(convert(account.weekly_pnl), symbol)}
+                </span>
+              </div>
             );
           })()}
         </div>
