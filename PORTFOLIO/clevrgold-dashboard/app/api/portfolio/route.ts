@@ -37,20 +37,21 @@ export async function GET() {
         ORDER BY a.account_number
       `;
 
-    // Calculate daily, weekly & monthly P&L from trades table (MT4 server timezone)
-    // Uses MT4 server date to match snapshot daily_pnl reset cycle
+    // Calculate daily, weekly & monthly P&L from trades table
+    // close_time is stored as MT4 server time (timestamp without timezone)
+    // So we compare directly — no AT TIME ZONE on close_time
     const tradesPnl = await sql`
       SELECT
         account_number,
         COALESCE(SUM(CASE
-          WHEN (close_time AT TIME ZONE ${MT4_TZ})::date = (NOW() AT TIME ZONE ${MT4_TZ})::date
+          WHEN close_time::date = (NOW() AT TIME ZONE ${MT4_TZ})::date
           THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END), 0) as today_pnl,
         COALESCE(SUM(CASE
-          WHEN close_time >= date_trunc('week', NOW() AT TIME ZONE ${MT4_TZ}) AT TIME ZONE ${MT4_TZ}
+          WHEN close_time >= date_trunc('week', NOW() AT TIME ZONE ${MT4_TZ})
           THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END), 0) as week_pnl,
         COALESCE(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0)), 0) as month_pnl
       FROM trades
-      WHERE close_time >= date_trunc('month', NOW() AT TIME ZONE ${MT4_TZ}) AT TIME ZONE ${MT4_TZ}
+      WHERE close_time >= date_trunc('month', NOW() AT TIME ZONE ${MT4_TZ})
       GROUP BY account_number
     `;
 

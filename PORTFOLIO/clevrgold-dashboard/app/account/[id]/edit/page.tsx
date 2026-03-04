@@ -266,8 +266,8 @@ export default function EditAccountPage() {
                 <label className={labelClass}>EA Strategy</label>
                 <select value={eaStrategy} onChange={(e) => setEaStrategy(e.target.value)} className={inputClass}>
                   <option value="">— None —</option>
-                  <option value="trend">Trend (ตามเทรน)</option>
-                  <option value="counter">Counter-Trend (สวนเทรน)</option>
+                  <option value="Buy">Buy</option>
+                  <option value="Sell">Sell</option>
                 </select>
               </div>
               <div>

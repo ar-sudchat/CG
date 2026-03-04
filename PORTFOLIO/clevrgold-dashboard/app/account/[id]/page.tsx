@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import useSWR from 'swr';
@@ -34,20 +34,10 @@ export default function AccountDetailPage() {
     ? `&from=${dateRange.from}&to=${dateRange.to}`
     : '';
 
-  const { data, error, isLoading, mutate } = useSWR(`/api/account/${id}?_=1${dateParams}`, fetcher, {
+  const { data, error, isLoading } = useSWR(`/api/account/${id}?_=1${dateParams}`, fetcher, {
     refreshInterval: 5000,
     revalidateOnFocus: true,
   });
-
-  const toggleLock = useCallback(async () => {
-    const current = data?.account?.manual_lock === true;
-    await fetch(`/api/account/${id}/lock`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manual_lock: !current }),
-    });
-    mutate();
-  }, [id, data, mutate]);
 
   if (error) {
     return (
@@ -68,7 +58,6 @@ export default function AccountDetailPage() {
   }
 
   const { account, snapshot, stats, today, open_positions, recent_trades } = data;
-  const isManualLocked = account.manual_lock === true;
 
   const dPct = DAILY_TARGET_USD > 0 ? Math.min((snapshot.daily_pnl / DAILY_TARGET_USD) * 100, 100) : 0;
   const dHit = snapshot.daily_pnl >= DAILY_TARGET_USD;
@@ -100,28 +89,6 @@ export default function AccountDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleLock}
-            className={cn(
-              'flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
-              isManualLocked
-                ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
-                : 'bg-[#1a2332] text-slate-500 hover:bg-[#243044] hover:text-slate-300'
-            )}
-            title={isManualLocked ? 'Unlock account' : 'Lock account'}
-          >
-            {isManualLocked ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
-              </svg>
-            )}
-          </button>
           <Link
             href={`/account/${id}/edit`}
             className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#1a2332] hover:bg-[#243044] text-slate-500 hover:text-slate-300 transition-colors"

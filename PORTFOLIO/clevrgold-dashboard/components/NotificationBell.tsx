@@ -57,17 +57,6 @@ export default function NotificationBell() {
     const items: AlertItem[] = [];
 
     (data.accounts as Account[]).forEach((acc) => {
-      // Warning: Account LOCKED by pair
-      if (acc.is_locked && acc.locked_by) {
-        items.push({
-          level: 'warning',
-          account_number: acc.account_number,
-          name: acc.name,
-          message: `LOCKED by #${acc.locked_by}`,
-          detail: 'Pair active',
-        });
-      }
-
       // Critical: AW mode
       if (acc.aw_orders > 0 || acc.mode === 'AW') {
         items.push({

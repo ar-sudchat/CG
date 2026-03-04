@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       tradesData = auth.accountFilter === null
         ? await sql`
           SELECT
-            TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
+            TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
             ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
             COUNT(*) as trades,
             COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         `
         : await sql`
           SELECT
-            TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
+            TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
             ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
             COUNT(*) as trades,
             COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       const accountNum = parseInt(account);
       tradesData = await sql`
         SELECT
-          TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
+          TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
           ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
           COUNT(*) as trades,
           COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins

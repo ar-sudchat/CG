@@ -45,8 +45,6 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
   const floatIsBigLoss = account.floating_pnl < -10;
   const lowMargin = account.margin_level > 0 && account.margin_level < 500 && hasOrders;
   const warnMargin = account.margin_level > 0 && account.margin_level < 1000 && !lowMargin && hasOrders;
-  const isLocked = account.is_locked === true;
-
   // Determine card border/glow based on severity
   const cardBorder = isAW
     ? 'border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
@@ -99,19 +97,11 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
                 {account.ea_strategy && (
                   <span className={cn(
                     'text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
-                    account.ea_strategy === 'trend'
+                    account.ea_strategy === 'Buy'
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                       : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                   )}>
-                    {account.ea_strategy === 'trend' ? 'TREND' : 'COUNTER'}
-                  </span>
-                )}
-                {isLocked && (
-                  <span className="inline-flex items-center p-0.5 rounded bg-purple-500/20 text-purple-400" title="LOCKED">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
+                    {account.ea_strategy.toUpperCase()}
                   </span>
                 )}
               </div>
@@ -214,17 +204,6 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
           })()}
         </div>
 
-        {/* Lock reason */}
-        {isLocked && account.lock_reason && (
-          <div className="bg-purple-500/10 rounded-lg px-3 py-2 mb-3 border border-purple-500/20">
-            <div className="text-[10px] font-mono text-purple-400 font-bold">
-              LOCKED — Waiting for #{account.locked_by}
-            </div>
-            <div className="text-[9px] text-purple-400/70 mt-0.5 truncate">
-              {account.lock_reason}
-            </div>
-          </div>
-        )}
 
         {/* Footer: Margin + Spread */}
         <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">

@@ -105,7 +105,7 @@ export async function GET(
         WHERE account_number = ${accountNumber}
       `;
 
-    // Get today's trades (Bangkok timezone)
+    // Get today's trades (MT4 server date — close_time is already MT4 time)
     const todayRows = await sql`
       SELECT
         COUNT(*) as today_trades,
@@ -113,19 +113,19 @@ export async function GET(
         COUNT(CASE WHEN profit > 0 THEN 1 END) as today_wins
       FROM trades
       WHERE account_number = ${accountNumber}
-        AND (close_time AT TIME ZONE ${MT4_TZ} AT TIME ZONE 'Asia/Bangkok')::date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
+        AND close_time::date = (NOW() AT TIME ZONE ${MT4_TZ})::date
     `;
 
-    // Calculate daily & weekly P&L from trades (Bangkok timezone) as fallback
+    // Calculate daily & weekly P&L from trades (MT4 server time)
     const tradesPnlRows = await sql`
       SELECT
         COALESCE(SUM(CASE
-          WHEN (close_time AT TIME ZONE ${MT4_TZ} AT TIME ZONE 'Asia/Bangkok')::date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
+          WHEN close_time::date = (NOW() AT TIME ZONE ${MT4_TZ})::date
           THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END), 0) as today_pnl,
         COALESCE(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0)), 0) as week_pnl
       FROM trades
       WHERE account_number = ${accountNumber}
-        AND close_time >= date_trunc('week', NOW() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok' AT TIME ZONE ${MT4_TZ}
+        AND close_time >= date_trunc('week', NOW() AT TIME ZONE ${MT4_TZ})
     `;
 
     // Get open positions
