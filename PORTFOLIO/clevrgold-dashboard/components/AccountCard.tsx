@@ -120,14 +120,23 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
                   onToggleLock(account.account_number, !account.manual_lock);
                 }}
                 className={cn(
-                  'w-7 h-7 rounded-md flex items-center justify-center text-sm transition-all border',
+                  'w-7 h-7 rounded-md flex items-center justify-center transition-all border',
                   account.is_locked
-                    ? 'bg-red-500/15 border-red-500/30 text-red-400 hover:bg-red-500/25'
-                    : 'bg-transparent border-transparent text-[var(--text-dim)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-secondary)]'
+                    ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30'
+                    : 'bg-transparent border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text-secondary)] hover:border-[var(--text-dim)]'
                 )}
                 title={account.is_locked ? (account.lock_reason || 'Locked') : 'Lock account'}
               >
-                {account.is_locked ? '🔒' : '🔓'}
+                {account.is_locked ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                    <path d="M12 2C9.24 2 7 4.24 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7c0-2.76-2.24-5-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9zm3 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                  </svg>
+                )}
               </button>
             )}
             <StatusBadge
