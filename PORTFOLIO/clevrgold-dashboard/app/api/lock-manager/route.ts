@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       SELECT
         a.account_number,
         a.name,
+        COALESCE(a.avatar_text, '') AS avatar_text,
         a.ea_strategy,
         a.pair_group,
         COALESCE(s.balance, 0)       AS balance,
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       FROM accounts a
       LEFT JOIN snapshots s ON a.account_number = s.account_number
       WHERE a.is_active = true
-      ORDER BY a.name ASC
+      ORDER BY a.pair_group ASC, a.ea_strategy ASC
     `;
 
     return NextResponse.json(rows, { headers });
