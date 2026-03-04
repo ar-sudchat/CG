@@ -31,12 +31,13 @@ interface Account {
   updated_at: string;
   seconds_ago?: number;
   is_offline?: boolean;
+  manual_lock?: boolean;
   is_locked?: boolean;
   lock_reason?: string | null;
   locked_by?: number | null;
 }
 
-export default function AccountCard({ account, isWeekend }: { account: Account; isWeekend?: boolean }) {
+export default function AccountCard({ account, isWeekend, onToggleLock }: { account: Account; isWeekend?: boolean; onToggleLock?: (accountNumber: number, lock: boolean) => void }) {
   const { convert, symbol } = useCurrency();
   const isAW = account.aw_orders > 0 || account.mode === 'AW';
   const totalOrders = account.open_orders + account.aw_orders;
@@ -111,6 +112,24 @@ export default function AccountCard({ account, isWeekend }: { account: Account; 
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {onToggleLock && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleLock(account.account_number, !account.manual_lock);
+                }}
+                className={cn(
+                  'w-7 h-7 rounded-md flex items-center justify-center text-sm transition-all border',
+                  account.is_locked
+                    ? 'bg-red-500/15 border-red-500/30 text-red-400 hover:bg-red-500/25'
+                    : 'bg-transparent border-transparent text-[var(--text-dim)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-secondary)]'
+                )}
+                title={account.is_locked ? (account.lock_reason || 'Locked') : 'Lock account'}
+              >
+                {account.is_locked ? '🔒' : '🔓'}
+              </button>
+            )}
             <StatusBadge
               mode={account.mode}
               orders={account.open_orders}

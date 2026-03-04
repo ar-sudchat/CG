@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         COALESCE(a.avatar_text, '') AS avatar_text,
         a.ea_strategy,
         a.pair_group,
+        COALESCE(a.manual_lock, FALSE) AS manual_lock,
         COALESCE(s.balance, 0)       AS balance,
         COALESCE(s.equity, 0)        AS equity,
         COALESCE(s.floating_pnl, 0)  AS floating_pnl,

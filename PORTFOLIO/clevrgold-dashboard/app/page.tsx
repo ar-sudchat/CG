@@ -19,6 +19,15 @@ export default function PortfolioPage() {
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const { convert, symbol } = useCurrency();
 
+  const handleToggleLock = async (accountNumber: number, lock: boolean) => {
+    await fetch(`/api/account/${accountNumber}/lock`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manual_lock: lock }),
+    });
+    mutate();
+  };
+
   const { data, error, isLoading, mutate } = useSWR('/api/portfolio', fetcher, {
     refreshInterval: 5000,
     revalidateOnFocus: true,
@@ -295,7 +304,7 @@ export default function PortfolioPage() {
                         {/* Cards: adapt columns to pair size */}
                         <div className={cn('grid gap-3', gridCols(pair.length))}>
                           {pair.map((account: any) => (
-                            <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} />
+                            <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} onToggleLock={handleToggleLock} />
                           ))}
                         </div>
                       </div>
@@ -315,7 +324,7 @@ export default function PortfolioPage() {
                   )}
                   <div className={cn('grid gap-3', gridCols(unpaired.length))}>
                     {unpaired.map((account: any) => (
-                      <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} />
+                      <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} onToggleLock={handleToggleLock} />
                     ))}
                   </div>
                 </div>
