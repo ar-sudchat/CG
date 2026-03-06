@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/lib/useUser';
+
 
 function IconPortfolio({ active }: { active: boolean }) {
   if (active) {
@@ -98,18 +98,36 @@ function IconAdmin({ active }: { active: boolean }) {
   );
 }
 
+function IconAW({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L2 22h20L12 2z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M12 9v5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="12" cy="17" r="1" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2L2 22h20L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M12 9v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="17" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 const iconMap: Record<string, React.FC<{ active: boolean }>> = {
   portfolio: IconPortfolio,
   trades: IconTrades,
   accounts: IconAccounts,
   finance: IconFinance,
+  aw: IconAW,
   admin: IconAdmin,
 };
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { isAdmin } = useUser();
-
   if (pathname === '/login' || pathname === '/register') return null;
 
   const navItems = [
@@ -117,7 +135,8 @@ export default function BottomNav() {
     { href: '/trades', label: 'Trades', iconKey: 'trades' },
     { href: '/my-accounts', label: 'Accounts', iconKey: 'accounts' },
     { href: '/finance', label: 'Finance', iconKey: 'finance' },
-    ...(isAdmin ? [{ href: '/admin', label: 'Admin', iconKey: 'admin' }] : []),
+    { href: '/aw-report', label: 'AW', iconKey: 'aw' },
+    // Admin only on desktop (Header)
   ];
 
   return (

@@ -15,7 +15,6 @@ export async function GET(
   const headers = { 'Cache-Control': 'no-store, no-cache, must-revalidate' };
 
   try {
-    // Auth: API key via query param or header
     const apiKey =
       request.nextUrl.searchParams.get('key') ||
       request.headers.get('X-API-Key');
@@ -35,9 +34,9 @@ export async function GET(
       );
     }
 
-    // Fetch the target account's pair_group + manual_lock
+    // Fetch the target account's pair_group + raw manual_lock (null/true/false)
     const targetRows = await sql`
-      SELECT a.account_number, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock
+      SELECT a.account_number, a.pair_group, a.manual_lock
       FROM accounts a
       WHERE a.account_number = ${accountNumber} AND a.is_active = TRUE
     `;
@@ -50,28 +49,16 @@ export async function GET(
     }
 
     const pairGroup = targetRows[0].pair_group;
+    const rawManualLock = targetRows[0].manual_lock;
 
-    const manualLock = targetRows[0].manual_lock === true;
-
-    // No pair group & no manual lock = never locked
-    if (!pairGroup && !manualLock) {
+    // No pair group → only manual lock matters
+    if (!pairGroup) {
+      const isLocked = rawManualLock === true;
       return NextResponse.json({
         account_number: accountNumber,
-        is_locked: false,
-        lock_reason: null,
-        locked_by: null,
-        pair_group: null,
-        timestamp: new Date().toISOString(),
-      }, { headers });
-    }
-
-    // Manual lock without pair group
-    if (!pairGroup && manualLock) {
-      return NextResponse.json({
-        account_number: accountNumber,
-        is_locked: true,
-        lock_reason: 'Manual lock',
-        lock_reasons: ['Manual lock'],
+        is_locked: isLocked,
+        lock_reason: isLocked ? 'Manual lock' : null,
+        lock_reasons: isLocked ? ['Manual lock'] : [],
         locked_by: null,
         pair_group: null,
         timestamp: new Date().toISOString(),
@@ -80,7 +67,7 @@ export async function GET(
 
     // Fetch all accounts in the same pair group with snapshots
     const pairRows = await sql`
-      SELECT a.account_number, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
+      SELECT a.account_number, a.pair_group, a.manual_lock,
              COALESCE(s.aw_orders, 0) as aw_orders,
              COALESCE(s.open_orders, 0) as open_orders,
              COALESCE(s.floating_pnl, 0) as floating_pnl
@@ -95,7 +82,7 @@ export async function GET(
       aw_orders: Number(r.aw_orders) || 0,
       open_orders: Number(r.open_orders) || 0,
       floating_pnl: Number(r.floating_pnl) || 0,
-      manual_lock: r.manual_lock === true,
+      manual_lock: r.manual_lock === true ? true : r.manual_lock === false ? false : null,
     }));
 
     const target = allAccounts.find((a) => a.account_number === accountNumber)!;
@@ -112,7 +99,6 @@ export async function GET(
     }, { headers });
   } catch (error) {
     console.error('Lock status API error:', error);
-    // Fail-safe: on error, lock the account
     return NextResponse.json(
       { error: 'Internal server error', is_locked: true },
       { status: 500, headers }

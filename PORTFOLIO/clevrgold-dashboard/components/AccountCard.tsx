@@ -117,7 +117,7 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onToggleLock(account.account_number, !account.manual_lock);
+                  onToggleLock(account.account_number, !account.is_locked);
                 }}
                 className={cn(
                   'w-7 h-7 rounded-md flex items-center justify-center transition-all border',

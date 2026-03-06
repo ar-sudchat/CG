@@ -55,14 +55,34 @@ export default function Header() {
             </span>
           </button>
 
-          {/* Live indicator */}
-          <div className="flex items-center gap-1.5">
+          {/* Live indicator — desktop only */}
+          <div className="hidden sm:flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs font-mono text-green-500">LIVE</span>
           </div>
 
-          {/* Notification Bell */}
-          <NotificationBell />
+          {/* Notification Bell — desktop only */}
+          <div className="hidden sm:block">
+            <NotificationBell />
+          </div>
+
+          {/* AW Report link */}
+          <Link
+            href="/aw-report"
+            className={cn(
+              'flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
+              pathname === '/aw-report'
+                ? 'text-red-400 bg-red-400/10'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-[var(--bg-card)]'
+            )}
+            title="AW Report"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 22h20L12 2z" />
+              <path d="M12 9v5" />
+              <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+            </svg>
+          </Link>
 
           {/* Finance link */}
           <Link

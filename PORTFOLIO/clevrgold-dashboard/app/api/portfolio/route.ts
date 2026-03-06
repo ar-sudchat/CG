@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql, { MT4_TZ } from '@/lib/db';
 import { getSessionAndAccounts } from '@/lib/auth';
-import { computeAllLockStatuses } from '@/lib/lock';
+import { computeAllLockStatuses, findStaleOverrides } from '@/lib/lock';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET() {
     const rows = auth.accountFilter === null
       ? await sql`
         SELECT
-          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
+          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -25,7 +25,7 @@ export async function GET() {
       `
       : await sql`
         SELECT
-          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, COALESCE(a.manual_lock, FALSE) as manual_lock,
+          a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -147,7 +147,7 @@ export async function GET() {
         avatar_text: r.avatar_text || '',
         ea_strategy: r.ea_strategy || '',
         pair_group: r.pair_group || '',
-        manual_lock: r.manual_lock === true,
+        manual_lock: r.manual_lock === true ? true : r.manual_lock === false ? false : null,
         initial_deposit: Number(r.initial_deposit) || 0,
         balance,
         equity,
@@ -170,6 +170,15 @@ export async function GET() {
         is_offline: (Number(r.seconds_ago) || 999999) > 300,
       };
     });
+
+    // Reset stale overrides (manual_lock=false where AW already cleared)
+    const staleIds = findStaleOverrides(accounts);
+    if (staleIds.length > 0) {
+      void sql`UPDATE accounts SET manual_lock = NULL WHERE account_number = ANY(${staleIds})`;
+      for (const acc of accounts) {
+        if (staleIds.includes(acc.account_number)) acc.manual_lock = null;
+      }
+    }
 
     // Compute lock status for all accounts
     const lockMap = computeAllLockStatuses(accounts);
