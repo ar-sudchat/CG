@@ -69,15 +69,17 @@ export async function GET() {
     const openPos = await sql`
       SELECT account_number, type,
              COUNT(*)::int as cnt,
-             SUM(lots) as total_lots
+             SUM(lots) as total_lots,
+             SUM(profit + COALESCE(commission, 0) + COALESCE(swap, 0)) as total_pnl
       FROM open_positions
       GROUP BY account_number, type
     `;
-    const posMap = new Map<string, { buy_orders: number; buy_lots: number; sell_orders: number; sell_lots: number }>();
+    const posMap = new Map<string, { buy_orders: number; buy_lots: number; sell_orders: number; sell_lots: number; floating: number }>();
     for (const p of openPos) {
       const key = String(p.account_number);
-      if (!posMap.has(key)) posMap.set(key, { buy_orders: 0, buy_lots: 0, sell_orders: 0, sell_lots: 0 });
+      if (!posMap.has(key)) posMap.set(key, { buy_orders: 0, buy_lots: 0, sell_orders: 0, sell_lots: 0, floating: 0 });
       const entry = posMap.get(key)!;
+      entry.floating += Number(p.total_pnl) || 0;
       if (p.type === 'BUY') {
         entry.buy_orders = Number(p.cnt) || 0;
         entry.buy_lots = Number(p.total_lots) || 0;
@@ -105,9 +107,12 @@ export async function GET() {
     const accounts = rows.map((r) => {
       const balance = Number(r.balance) || 0;
       const equity = Number(r.equity) || 0;
-      const floating = Number(r.floating_pnl) || 0;
+      const pos = posMap.get(String(r.account_number));
+      const posFloating = pos?.floating || 0;
+      const snapshotFloating = Number(r.floating_pnl) || 0;
+      const floating = snapshotFloating !== 0 ? snapshotFloating : posFloating;
       const snapshotWeekly = Number(r.weekly_pnl) || 0;
-      const orders = Number(r.open_orders) || 0;
+      const orders = (pos ? (pos.buy_orders + pos.sell_orders) : 0) || Number(r.open_orders) || 0;
       const aw = Number(r.aw_orders) || 0;
 
       // Only use snapshot daily_pnl if it was updated on today's MT4 date
@@ -136,8 +141,6 @@ export async function GET() {
       totalMonthly += monthly;
       totalOrders += orders;
       if (aw > 0) awActive++;
-
-      const pos = posMap.get(String(r.account_number));
 
       return {
         account_number: r.account_number,
