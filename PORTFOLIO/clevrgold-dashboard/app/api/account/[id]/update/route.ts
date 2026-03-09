@@ -118,7 +118,7 @@ export async function PATCH(
         ea_strategy = COALESCE(${ea_strategy ?? null}, ea_strategy),
         pair_group = CASE WHEN ${newPairGroup !== undefined}::boolean THEN ${newPairGroup ?? null}::varchar ELSE pair_group END,
         notes = COALESCE(${notes ?? null}, notes),
-        is_active = COALESCE(${is_active !== undefined ? is_active : null}, is_active)
+        is_active = CASE WHEN ${is_active !== undefined}::boolean THEN ${is_active ?? null}::boolean ELSE is_active END
       WHERE account_number = ${accountNumber}
     `;
 

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import DailyPnlChart from '@/components/DailyPnlChart';
+import PnlCalendar from '@/components/PnlCalendar';
 import dynamic from 'next/dynamic';
 
 const TradingViewChart = dynamic(() => import('@/components/TradingViewChart'), {
@@ -23,12 +24,13 @@ const TradingViewNews = dynamic(() => import('@/components/TradingViewNews'), {
   ),
 });
 
-type TabKey = 'pnl' | 'xauusd' | 'news';
+type TabKey = 'pnl' | 'calendar' | 'xauusd' | 'news';
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'pnl', label: 'Daily P&L' },
+  { key: 'calendar', label: 'Calendar' },
   { key: 'xauusd', label: 'TradingView' },
-  { key: 'news', label: 'Calendar' },
+  { key: 'news', label: 'News' },
 ];
 
 interface ChartSectionProps {
@@ -65,6 +67,10 @@ export default function ChartSection({ accountCount }: ChartSectionProps) {
       {/* Chart content */}
       {activeTab === 'pnl' && (
         <DailyPnlChart accountCount={accountCount} />
+      )}
+
+      {activeTab === 'calendar' && (
+        <PnlCalendar />
       )}
 
       {activeTab === 'xauusd' && (

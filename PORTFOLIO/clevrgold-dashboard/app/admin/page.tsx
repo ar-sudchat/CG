@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import useSWR from 'swr';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -19,6 +20,7 @@ interface Account {
   account_number: number;
   name: string;
   owner: string;
+  is_active: boolean;
 }
 
 interface UserAccount {
@@ -106,6 +108,19 @@ export default function AdminPage() {
     });
     setSaving(false);
     mutate();
+  };
+
+  const [togglingAccount, setTogglingAccount] = useState<number | null>(null);
+
+  const handleToggleActive = async (accountNumber: number, currentActive: boolean) => {
+    setTogglingAccount(accountNumber);
+    await fetch(`/api/account/${accountNumber}/update`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !currentActive }),
+    });
+    mutate();
+    setTogglingAccount(null);
   };
 
   const cardClass = 'bg-[#111827] rounded-xl border border-[#1e2a3a] p-4';
@@ -238,6 +253,46 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Accounts Management */}
+      <div className={cardClass}>
+        <h2 className="text-sm font-semibold text-slate-300 mb-3">
+          Accounts ({accounts.length})
+        </h2>
+        <div className="space-y-1.5">
+          {accounts.map((acc) => (
+            <div key={acc.account_number} className="flex items-center justify-between bg-[#0a0e17] rounded-lg px-3 py-2">
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  acc.is_active ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-500'
+                }`}>
+                  {acc.is_active ? 'Active' : 'Hidden'}
+                </span>
+                <span className="text-sm font-mono text-slate-200">{acc.account_number}</span>
+                <span className="text-xs text-slate-500">{acc.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleToggleActive(Number(acc.account_number), acc.is_active)}
+                  disabled={togglingAccount === Number(acc.account_number)}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                    acc.is_active
+                      ? 'bg-slate-500/20 text-slate-400 hover:bg-slate-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  } disabled:opacity-50`}
+                >
+                  {togglingAccount === Number(acc.account_number) ? '...' : acc.is_active ? 'Hide' : 'Show'}
+                </button>
+                <Link
+                  href={`/account/${acc.account_number}/edit`}
+                  className="px-3 py-1 rounded text-xs font-medium bg-[#eab308]/20 text-[#eab308] hover:bg-[#eab308]/30"
+                >
+                  Edit
+                </Link>
+              </div>
             </div>
           ))}
         </div>

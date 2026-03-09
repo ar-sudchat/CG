@@ -15,9 +15,9 @@ export async function GET() {
       ORDER BY u.created_at DESC
     `;
 
-    // Get all accounts for assignment UI
+    // Get all accounts for assignment UI (including inactive)
     const accounts = await sql`
-      SELECT account_number, name, owner FROM accounts WHERE is_active = TRUE ORDER BY account_number
+      SELECT account_number, name, owner, is_active FROM accounts ORDER BY account_number
     `;
 
     return NextResponse.json({
@@ -34,6 +34,7 @@ export async function GET() {
         account_number: a.account_number,
         name: a.name,
         owner: a.owner,
+        is_active: a.is_active,
       })),
     });
   } catch (error) {
