@@ -191,7 +191,8 @@ export async function GET(
 
     // Supplement daily/weekly with trades data when snapshot is 0 (MT4 server day rollover)
     const rawSnapshotDaily = Number(r.daily_pnl) || 0;
-    const snapshotWeekly = Number(r.weekly_pnl) || 0;
+    const rawSnapshotWeekly = Number(r.weekly_pnl) || 0;
+    const snapshotWeekly = rawSnapshotWeekly - snapshotFloating + floating;
     // Correct snapshot daily by replacing EA-only floating with all floating
     const snapshotDaily = rawSnapshotDaily - snapshotFloating + floating;
     const tradesDailyPnl = (Number(tpnl?.today_pnl) || 0) + floating;

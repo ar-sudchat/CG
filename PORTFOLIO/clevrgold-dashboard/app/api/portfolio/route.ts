@@ -112,7 +112,8 @@ export async function GET() {
       const snapshotFloating = Number(r.floating_pnl) || 0;
       // Use open_positions floating when available (includes manual orders), fall back to snapshot
       const floating = pos ? posFloating : snapshotFloating;
-      const snapshotWeekly = Number(r.weekly_pnl) || 0;
+      const rawSnapshotWeekly = Number(r.weekly_pnl) || 0;
+      const snapshotWeekly = rawSnapshotWeekly - snapshotFloating + floating;
       const orders = (pos ? (pos.buy_orders + pos.sell_orders) : 0) || Number(r.open_orders) || 0;
       const aw = Number(r.aw_orders) || 0;
 
