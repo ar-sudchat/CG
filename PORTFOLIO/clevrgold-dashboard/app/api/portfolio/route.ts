@@ -110,7 +110,8 @@ export async function GET() {
       const pos = posMap.get(String(r.account_number));
       const posFloating = pos?.floating || 0;
       const snapshotFloating = Number(r.floating_pnl) || 0;
-      const floating = snapshotFloating !== 0 ? snapshotFloating : posFloating;
+      // Use open_positions floating when available (includes manual orders), fall back to snapshot
+      const floating = pos ? posFloating : snapshotFloating;
       const snapshotWeekly = Number(r.weekly_pnl) || 0;
       const orders = (pos ? (pos.buy_orders + pos.sell_orders) : 0) || Number(r.open_orders) || 0;
       const aw = Number(r.aw_orders) || 0;

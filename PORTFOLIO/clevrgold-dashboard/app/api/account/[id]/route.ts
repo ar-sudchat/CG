@@ -183,11 +183,17 @@ export async function GET(
     // Drawdown: how much equity has dropped from the "peak" (initial + total profit)
     const balance = Number(r.balance) || 0;
     const equity = Number(r.equity) || 0;
-    const floating = Number(r.floating_pnl) || 0;
+    const snapshotFloating = Number(r.floating_pnl) || 0;
+    // Calculate floating from open_positions (includes manual orders)
+    const posFloating = openPositions.reduce((sum, p) =>
+      sum + (Number(p.profit) || 0) + (Number(p.swap) || 0) + (Number(p.commission) || 0), 0);
+    const floating = openPositions.length > 0 ? posFloating : snapshotFloating;
 
     // Supplement daily/weekly with trades data when snapshot is 0 (MT4 server day rollover)
-    const snapshotDaily = Number(r.daily_pnl) || 0;
+    const rawSnapshotDaily = Number(r.daily_pnl) || 0;
     const snapshotWeekly = Number(r.weekly_pnl) || 0;
+    // Correct snapshot daily by replacing EA-only floating with all floating
+    const snapshotDaily = rawSnapshotDaily - snapshotFloating + floating;
     const tradesDailyPnl = (Number(tpnl?.today_pnl) || 0) + floating;
     const tradesWeeklyPnl = (Number(tpnl?.week_pnl) || 0) + floating;
     const effectiveDaily = Math.abs(tradesDailyPnl) > Math.abs(snapshotDaily) ? tradesDailyPnl : snapshotDaily;
@@ -218,13 +224,13 @@ export async function GET(
       snapshot: {
         balance,
         equity,
-        floating_pnl: Number(r.floating_pnl) || 0,
+        floating_pnl: floating,
         margin: Number(r.margin) || 0,
         free_margin: Number(r.free_margin) || 0,
         margin_level: Number(r.margin_level) || 0,
         daily_pnl: effectiveDaily,
         weekly_pnl: effectiveWeekly,
-        open_orders: Number(r.open_orders) || 0,
+        open_orders: openPositions.length || Number(r.open_orders) || 0,
         aw_orders: Number(r.aw_orders) || 0,
         mode: r.mode || 'OK',
         tp_today: Number(r.tp_today) || 0,

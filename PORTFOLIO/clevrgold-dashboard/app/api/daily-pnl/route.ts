@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
         ? await sql`
           SELECT
             ROUND(SUM(COALESCE(s.daily_pnl, 0))::numeric, 2) as pnl,
+            ROUND(SUM(COALESCE(s.floating_pnl, 0))::numeric, 2) as ea_floating,
             SUM(COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0)) as trades,
             MAX(s.updated_at) as latest_update
           FROM accounts a
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
         : await sql`
           SELECT
             ROUND(SUM(COALESCE(s.daily_pnl, 0))::numeric, 2) as pnl,
+            ROUND(SUM(COALESCE(s.floating_pnl, 0))::numeric, 2) as ea_floating,
             SUM(COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0)) as trades,
             MAX(s.updated_at) as latest_update
           FROM accounts a
@@ -94,6 +96,7 @@ export async function GET(request: NextRequest) {
       todaySnapshot = await sql`
         SELECT
           ROUND(COALESCE(s.daily_pnl, 0)::numeric, 2) as pnl,
+          ROUND(COALESCE(s.floating_pnl, 0)::numeric, 2) as ea_floating,
           COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0) as trades,
           s.updated_at as latest_update
         FROM accounts a
@@ -102,7 +105,36 @@ export async function GET(request: NextRequest) {
       `;
     }
 
-    const snapshotPnl = Number(todaySnapshot[0]?.pnl) || 0;
+    // Get floating P&L from open_positions (includes manual orders)
+    let openPosFloating;
+    if (account === 'all') {
+      openPosFloating = auth.accountFilter === null
+        ? await sql`
+          SELECT ROUND(COALESCE(SUM(op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0)), 0)::numeric, 2) as floating
+          FROM open_positions op
+          JOIN accounts a ON op.account_number = a.account_number
+          WHERE a.is_active = TRUE
+        `
+        : await sql`
+          SELECT ROUND(COALESCE(SUM(op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0)), 0)::numeric, 2) as floating
+          FROM open_positions op
+          WHERE op.account_number = ANY(${auth.accountFilter})
+        `;
+    } else {
+      const accountNum = parseInt(account);
+      openPosFloating = await sql`
+        SELECT ROUND(COALESCE(SUM(profit + COALESCE(commission, 0) + COALESCE(swap, 0)), 0)::numeric, 2) as floating
+        FROM open_positions
+        WHERE account_number = ${accountNum}
+      `;
+    }
+    const posFloating = Number(openPosFloating[0]?.floating) || 0;
+
+    const rawSnapshotPnl = Number(todaySnapshot[0]?.pnl) || 0;
+    const eaFloating = Number(todaySnapshot[0]?.ea_floating) || 0;
+    // snapshot daily_pnl = closed_today + EA_floating (missing manual orders)
+    // Correct by replacing EA floating with all floating from open_positions
+    const snapshotPnl = rawSnapshotPnl - eaFloating + posFloating;
     const latestUpdate = todaySnapshot[0]?.latest_update;
     // Determine which MT4 date the snapshot actually belongs to
     const snapshotDay = latestUpdate ? toMT4Date(latestUpdate) : toMT4Date(new Date());
