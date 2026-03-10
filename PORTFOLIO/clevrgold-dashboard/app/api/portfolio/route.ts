@@ -121,9 +121,10 @@ export async function GET() {
       const snapshotMT4Date = r.updated_at
         ? new Date(r.updated_at).toLocaleDateString('sv-SE', { timeZone: MT4_TZ })
         : null;
-      const snapshotDaily = (!isWeekend && snapshotMT4Date === todayMT4) ? (Number(r.daily_pnl) || 0) : 0;
+      const rawSnapshotDaily = (!isWeekend && snapshotMT4Date === todayMT4) ? (Number(r.daily_pnl) || 0) : 0;
+      // Snapshot daily_pnl includes EA-only floating; correct it with all floating
+      const snapshotDaily = rawSnapshotDaily - snapshotFloating + floating;
 
-      // Use whichever is higher: snapshot P&L or trades-based P&L + floating
       const tp = tradesMap.get(String(r.account_number));
       const tradesDailyPnl = isWeekend ? 0 : (tp?.today || 0) + floating;
       const tradesWeeklyPnl = (tp?.week || 0) + floating;
