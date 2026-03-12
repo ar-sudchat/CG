@@ -124,8 +124,8 @@ export default function AWReportPage() {
           <div className="text-center text-[var(--text-dim)] py-20 font-mono">No data</div>
         ) : (
           <>
-            {/* ── Daily Insight (Today vs 30d avg) ── */}
-            {insight && (insight.today_count > 0 || insight.avg30_per_day > 0) && (
+            {/* ── Daily Insight (Today vs 30d avg) — only when "Today" is selected ── */}
+            {filter.type === 'date' && filter.from === filter.to && insight && (insight.today_count > 0 || insight.avg30_per_day > 0) && (
               <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
                 <h2 className="text-sm font-semibold text-[var(--text-heading)] mb-3">
                   วันนี้ vs ค่าเฉลี่ย 30 วัน
