@@ -595,7 +595,7 @@ function RecoveryDurationChart({
 }) {
   // Only completed events, sorted by time (oldest first)
   const completed = events
-    .filter((e: any) => e.ended_at && e.duration_minutes != null)
+    .filter((e: any) => e.ended_at && e.duration_minutes > 0)
     .sort((a: any, b: any) => new Date(a.triggered_at).getTime() - new Date(b.triggered_at).getTime())
     .slice(-40); // Last 40 events max
 
@@ -603,7 +603,9 @@ function RecoveryDurationChart({
 
   const maxDuration = Math.max(...completed.map((e: any) => e.duration_minutes), 1);
   const avgDuration = Math.round(completed.reduce((s: number, e: any) => s + e.duration_minutes, 0) / completed.length);
-  const avgPct = (avgDuration / maxDuration) * 100;
+  // Use sqrt scale to make short bars visible while preserving relative heights
+  const sqrtMax = Math.sqrt(maxDuration);
+  const avgPct = (Math.sqrt(avgDuration) / sqrtMax) * 100;
 
   return (
     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
@@ -628,16 +630,16 @@ function RecoveryDurationChart({
         </div>
 
         {/* Bars */}
-        <div className="flex items-end gap-[2px] h-40">
+        <div className="flex items-end gap-[2px] h-52">
           {completed.map((e: any, i: number) => {
-            const pct = (e.duration_minutes / maxDuration) * 100;
+            const pct = (Math.sqrt(e.duration_minutes) / sqrtMax) * 100;
             const isWin = e.end_reason === 'AW_TP';
             const dateStr = new Date(e.triggered_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
             const accLabel = e.avatar_text || String(e.account_number).slice(-4);
             return (
               <div
                 key={e.id || i}
-                className="flex-1 min-w-0 group relative"
+                className="flex-1 min-w-0 group relative flex items-end h-full"
                 style={{ maxWidth: completed.length < 10 ? '40px' : undefined }}
               >
                 {/* Tooltip */}
@@ -654,13 +656,19 @@ function RecoveryDurationChart({
                     )}
                   </div>
                 </div>
+                {/* Duration label on top */}
+                <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center" style={{ height: `${Math.max(pct, 5)}%` }}>
+                  <span className="text-[7px] font-mono text-[var(--text-secondary)] -mt-3 whitespace-nowrap">
+                    {e.duration_minutes}m
+                  </span>
+                </div>
                 {/* Bar */}
                 <div
                   className={cn(
                     'w-full rounded-t transition-all duration-300 cursor-pointer',
-                    isWin ? 'bg-green-500/50 hover:bg-green-500/70' : 'bg-red-500/50 hover:bg-red-500/70'
+                    isWin ? 'bg-green-500/70 hover:bg-green-500/90' : 'bg-red-500/70 hover:bg-red-500/90'
                   )}
-                  style={{ height: `${Math.max(pct, 3)}%` }}
+                  style={{ height: `${Math.max(pct, 5)}%` }}
                 />
               </div>
             );
