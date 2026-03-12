@@ -375,12 +375,12 @@ export async function GET(request: NextRequest) {
       by_hour: byHour.map((r: any) => ({ hour: r.hour, count: r.count })),
       by_day: byDay.map((r: any) => ({ dow: r.dow, count: r.count })),
       by_week: byWeek.map((r: any) => ({
-        week_start: r.week_start,
+        week_start: r.week_start instanceof Date ? r.week_start.toISOString().slice(0, 10) : String(r.week_start).slice(0, 10),
         count: r.count,
         pnl: Number(Number(r.pnl).toFixed(2)),
       })),
       by_date: byDate.map((r: any) => ({
-        date: r.trade_date,
+        date: r.trade_date instanceof Date ? r.trade_date.toISOString().slice(0, 10) : String(r.trade_date).slice(0, 10),
         count: r.count,
         pnl: Number(Number(r.pnl).toFixed(2)),
       })),
