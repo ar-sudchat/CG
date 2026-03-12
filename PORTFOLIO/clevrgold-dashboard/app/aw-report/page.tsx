@@ -239,6 +239,11 @@ export default function AWReportPage() {
               </div>
             )}
 
+            {/* ── Recovery Duration Chart ── */}
+            {events.length > 0 && events.some((e: any) => e.ended_at) && (
+              <RecoveryDurationChart events={events} convert={convert} symbol={symbol} />
+            )}
+
             {/* ── Daily AW Timeline ── */}
             {byDate.length > 0 && (
               <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
@@ -576,6 +581,121 @@ function InsightMetric({
       </div>
       <div className={cn('text-[10px] font-mono font-semibold mt-0.5', diffColor)}>
         {diffStr}
+      </div>
+    </div>
+  );
+}
+
+function RecoveryDurationChart({
+  events, convert: conv, symbol: sym,
+}: {
+  events: any[];
+  convert: (v: number) => number;
+  symbol: string;
+}) {
+  // Only completed events, sorted by time (oldest first)
+  const completed = events
+    .filter((e: any) => e.ended_at && e.duration_minutes != null)
+    .sort((a: any, b: any) => new Date(a.triggered_at).getTime() - new Date(b.triggered_at).getTime())
+    .slice(-40); // Last 40 events max
+
+  if (completed.length === 0) return null;
+
+  const maxDuration = Math.max(...completed.map((e: any) => e.duration_minutes), 1);
+  const avgDuration = Math.round(completed.reduce((s: number, e: any) => s + e.duration_minutes, 0) / completed.length);
+  const avgPct = (avgDuration / maxDuration) * 100;
+
+  return (
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-[var(--text-heading)]">Recovery Duration</h2>
+        <span className="text-[10px] font-mono text-[var(--text-dim)]">
+          avg {avgDuration} min / max {maxDuration} min
+        </span>
+      </div>
+      <p className="text-[9px] text-[var(--text-dim)] mb-3">แต่ละรอบใช้เวลา recovery เท่าไร ({completed.length} events)</p>
+
+      {/* Chart */}
+      <div className="relative">
+        {/* Average line */}
+        <div
+          className="absolute left-0 right-0 border-t border-dashed border-yellow-500/50 z-10 pointer-events-none"
+          style={{ bottom: `${avgPct}%` }}
+        >
+          <span className="absolute -top-3.5 right-0 text-[8px] font-mono text-yellow-400/80 bg-[var(--bg-card)] px-1">
+            avg {avgDuration}m
+          </span>
+        </div>
+
+        {/* Bars */}
+        <div className="flex items-end gap-[2px] h-40">
+          {completed.map((e: any, i: number) => {
+            const pct = (e.duration_minutes / maxDuration) * 100;
+            const isWin = e.end_reason === 'AW_TP';
+            const dateStr = new Date(e.triggered_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+            const accLabel = e.avatar_text || String(e.account_number).slice(-4);
+            return (
+              <div
+                key={e.id || i}
+                className="flex-1 min-w-0 group relative"
+                style={{ maxWidth: completed.length < 10 ? '40px' : undefined }}
+              >
+                {/* Tooltip */}
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-20 pointer-events-none">
+                  <div className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg px-2 py-1.5 shadow-lg whitespace-nowrap">
+                    <div className="text-[9px] font-mono text-[var(--text-body)] font-bold">{accLabel}</div>
+                    <div className="text-[8px] font-mono text-[var(--text-dim)]">{dateStr}</div>
+                    <div className="text-[9px] font-mono text-[var(--text-body)]">{e.duration_minutes} min</div>
+                    <div className={cn('text-[9px] font-mono font-bold', isWin ? 'text-green-400' : 'text-red-400')}>
+                      {isWin ? 'TP' : e.end_reason} {e.end_pnl != null ? formatPnl(conv(e.end_pnl), sym) : ''}
+                    </div>
+                    {e.peak_dd > 0 && (
+                      <div className="text-[8px] font-mono text-red-400">DD: {formatPnl(conv(e.peak_dd), sym)}</div>
+                    )}
+                  </div>
+                </div>
+                {/* Bar */}
+                <div
+                  className={cn(
+                    'w-full rounded-t transition-all duration-300 cursor-pointer',
+                    isWin ? 'bg-green-500/50 hover:bg-green-500/70' : 'bg-red-500/50 hover:bg-red-500/70'
+                  )}
+                  style={{ height: `${Math.max(pct, 3)}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* X-axis labels (show some dates) */}
+        <div className="flex justify-between mt-1">
+          {completed.length > 0 && (
+            <span className="text-[8px] font-mono text-[var(--text-dim)]">
+              {new Date(completed[0].triggered_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+          {completed.length > 1 && (
+            <span className="text-[8px] font-mono text-[var(--text-dim)]">
+              {new Date(completed[completed.length - 1].triggered_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-4 mt-3 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 bg-green-500/50 rounded" />
+          <span className="text-[9px] text-[var(--text-dim)]">TP สำเร็จ</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 bg-red-500/50 rounded" />
+          <span className="text-[9px] text-[var(--text-dim)]">จบแบบอื่น</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-8 border-t border-dashed border-yellow-500/50" />
+          <span className="text-[9px] text-[var(--text-dim)]">ค่าเฉลี่ย</span>
+        </div>
       </div>
     </div>
   );
