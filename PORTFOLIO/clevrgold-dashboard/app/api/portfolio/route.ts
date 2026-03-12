@@ -14,6 +14,8 @@ export async function GET() {
       ? await sql`
         SELECT
           a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
+          COALESCE(a.auto_lock_enabled, true) as auto_lock_enabled,
+          COALESCE(a.auto_lock_threshold, 3.0) as auto_lock_threshold,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -26,6 +28,8 @@ export async function GET() {
       : await sql`
         SELECT
           a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
+          COALESCE(a.auto_lock_enabled, true) as auto_lock_enabled,
+          COALESCE(a.auto_lock_threshold, 3.0) as auto_lock_threshold,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
@@ -154,6 +158,8 @@ export async function GET() {
         ea_strategy: r.ea_strategy || '',
         pair_group: r.pair_group || '',
         manual_lock: r.manual_lock === true ? true : r.manual_lock === false ? false : null,
+        auto_lock_enabled: r.auto_lock_enabled !== false,
+        auto_lock_threshold: Number(r.auto_lock_threshold) || 3.0,
         initial_deposit: Number(r.initial_deposit) || 0,
         balance,
         equity,

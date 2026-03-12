@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS accounts (
     notes TEXT
 );
 
+-- Auto-lock columns (run once to add to existing table)
+-- ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_lock_enabled BOOLEAN DEFAULT TRUE;
+-- ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_lock_threshold DECIMAL(10,2) DEFAULT 3.0;
+
 -- Real-time snapshots (one row per account, upserted)
 CREATE TABLE IF NOT EXISTS snapshots (
     id SERIAL PRIMARY KEY,

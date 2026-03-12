@@ -1,4 +1,4 @@
-// Account Lock — manual + auto (AW pair)
+// Account Lock — manual + auto (AW pair + combined PnL)
 
 export interface LockStatus {
   is_locked: boolean;
@@ -14,50 +14,71 @@ export interface AccountForLock {
   open_orders: number;
   floating_pnl: number;
   manual_lock?: boolean | null;
+  auto_lock_enabled?: boolean;
+  auto_lock_threshold?: number;
 }
 
 const UNLOCKED: LockStatus = { is_locked: false, lock_reason: null, lock_reasons: [], locked_by: null };
+const DEFAULT_THRESHOLD = 3.0;
 
 /**
  * Compute lock status for a single account.
  *
- * manual_lock = true  → LOCKED (manual)
- * manual_lock = false → UNLOCKED (explicit override — user dismissed auto-lock)
- * manual_lock = null  → auto rules:
- *   - Partner has AW orders AND this account has 0 open orders → LOCKED
- *   - Otherwise → UNLOCKED
+ * Priority (high → low):
+ * 1. manual_lock = true   → LOCKED (manual override)
+ * 2. manual_lock = false  → UNLOCKED (manual override)
+ * 3. auto_lock disabled   → UNLOCKED
+ * 4. Pair has AW orders   → LOCK BOTH accounts
+ * 5. Combined float < -$X → LOCK BOTH accounts
+ * 6. Otherwise            → UNLOCKED
  */
 export function computeLockStatus(
   account: AccountForLock,
   allAccounts: AccountForLock[]
 ): LockStatus {
-  // Explicit manual lock
+  // 1. Manual lock override
   if (account.manual_lock === true) {
     return { is_locked: true, lock_reason: 'Manual lock', lock_reasons: ['Manual lock'], locked_by: null };
   }
 
-  // Explicit override (user dismissed auto-lock)
+  // 2. Manual unlock override
   if (account.manual_lock === false) {
     return UNLOCKED;
   }
 
-  // Auto rules (manual_lock = null)
+  // 3. Auto-lock disabled for this pair
+  const autoEnabled = account.auto_lock_enabled !== false; // default true
+  if (!autoEnabled) return UNLOCKED;
+
+  // No pair group → no auto rules
   if (!account.pair_group) return UNLOCKED;
 
   const partners = allAccounts.filter(
     (a) => a.pair_group === account.pair_group && a.account_number !== account.account_number
   );
-
   if (partners.length === 0) return UNLOCKED;
 
   const reasons: string[] = [];
   let lockedBy: number | null = null;
+  const threshold = account.auto_lock_threshold ?? DEFAULT_THRESHOLD;
 
+  // 4. AW Recovery — lock BOTH accounts in pair (not just the partner)
+  if (account.aw_orders > 0) {
+    reasons.push(`บัญชีนี้ติด AW (${account.aw_orders} orders)`);
+  }
   for (const p of partners) {
-    // Auto-lock: partner has AW AND this account has no open orders
-    if (p.aw_orders > 0 && account.open_orders === 0) {
+    if (p.aw_orders > 0) {
       reasons.push(`คู่ #${p.account_number} ติด AW (${p.aw_orders} orders)`);
       lockedBy = p.account_number;
+    }
+  }
+
+  // 5. Combined floating PnL check
+  if (reasons.length === 0 && threshold > 0) {
+    const pairAccounts = [account, ...partners];
+    const combinedFloat = pairAccounts.reduce((sum, a) => sum + a.floating_pnl, 0);
+    if (combinedFloat < -threshold) {
+      reasons.push(`Combined float ${combinedFloat.toFixed(2)} < -$${threshold}`);
     }
   }
 
@@ -80,7 +101,7 @@ export function computeAllLockStatuses(
 /**
  * Find accounts with stale override (manual_lock = false)
  * that no longer have auto-lock conditions.
- * These should be reset to null so future AW triggers auto-lock again.
+ * These should be reset to null so future triggers auto-lock again.
  */
 export function findStaleOverrides(
   accounts: AccountForLock[]
@@ -88,14 +109,18 @@ export function findStaleOverrides(
   return accounts
     .filter((acc) => {
       if (acc.manual_lock !== false) return false;
-      // Check if any partner has AW (auto-lock condition)
-      if (!acc.pair_group) return true; // no pair → stale
+      if (!acc.pair_group) return true;
       const partners = accounts.filter(
         (a) => a.pair_group === acc.pair_group && a.account_number !== acc.account_number
       );
-      const hasAwPartner = partners.some((p) => p.aw_orders > 0);
-      // Stale if no AW partner or account already has orders
-      return !hasAwPartner || acc.open_orders > 0;
+      // Check if any auto-lock condition is active
+      const hasAw = acc.aw_orders > 0 || partners.some((p) => p.aw_orders > 0);
+      if (hasAw) return false; // AW still active, override not stale
+      const threshold = acc.auto_lock_threshold ?? DEFAULT_THRESHOLD;
+      const pairAccounts = [acc, ...partners];
+      const combinedFloat = pairAccounts.reduce((sum, a) => sum + a.floating_pnl, 0);
+      if (combinedFloat < -threshold) return false; // PnL still bad, override not stale
+      return true; // No conditions active → stale
     })
     .map((a) => a.account_number);
 }

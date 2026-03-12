@@ -20,6 +20,7 @@ export default function AWReportPage() {
   const [filter, setFilter] = useState<FilterMode>({ type: 'days', days: 30 });
   const [fromDate, setFromDate] = useState(todayStr());
   const [toDate, setToDate] = useState(todayStr());
+  const [showEvents, setShowEvents] = useState(false);
   const { convert, symbol } = useCurrency();
 
   const apiUrl = filter.type === 'days'
@@ -39,12 +40,17 @@ export default function AWReportPage() {
   const byHour = data?.by_hour || [];
   const byDay = data?.by_day || [];
   const byWeek = data?.by_week || [];
+  const byDate = data?.by_date || [];
+  const events = data?.events || [];
+  const recovery = data?.recovery_stats;
+  const insight = data?.daily_insight;
 
   const maxTrades = Math.max(...byAccount.map((a: any) => a.aw_trades), 1);
   const maxHourCount = Math.max(...byHour.map((h: any) => h.count), 1);
   const maxDayCount = Math.max(...byDay.map((d: any) => d.count), 1);
   const maxWeekCount = Math.max(...byWeek.map((w: any) => w.count), 1);
   const maxWeekPnl = Math.max(...byWeek.map((w: any) => Math.abs(w.pnl)), 1);
+  const maxDateCount = Math.max(...byDate.map((d: any) => d.count), 1);
 
   return (
     <div className="p-4 space-y-4 pb-20 md:pb-4">
@@ -118,6 +124,39 @@ export default function AWReportPage() {
           <div className="text-center text-[var(--text-dim)] py-20 font-mono">No data</div>
         ) : (
           <>
+            {/* ── Daily Insight (Today vs 30d avg) ── */}
+            {insight && (insight.today_count > 0 || insight.avg30_per_day > 0) && (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
+                <h2 className="text-sm font-semibold text-[var(--text-heading)] mb-3">
+                  วันนี้ vs ค่าเฉลี่ย 30 วัน
+                </h2>
+                <div className="grid grid-cols-3 gap-3">
+                  <InsightMetric
+                    label="AW ครั้ง"
+                    today={insight.today_count}
+                    avg={insight.avg30_per_day}
+                    format="count"
+                  />
+                  <InsightMetric
+                    label="Duration"
+                    today={insight.today_avg_duration}
+                    avg={insight.avg30_duration}
+                    format="minutes"
+                    invertColor
+                  />
+                  <InsightMetric
+                    label="Peak DD"
+                    today={Math.abs(insight.today_avg_dd)}
+                    avg={Math.abs(insight.avg30_dd)}
+                    format="dollar"
+                    invertColor
+                    symbol={symbol}
+                    convert={convert}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <SummaryCard label="AW Trades" value={String(summary.total_aw_trades)} />
@@ -136,6 +175,113 @@ export default function AWReportPage() {
                 color={pnlColor(summary.avg_pnl_per_trade)}
               />
             </div>
+
+            {/* ── Recovery Stats ── */}
+            {recovery && recovery.total_events > 0 && (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
+                <h2 className="text-sm font-semibold text-[var(--text-heading)] mb-1">Recovery Stats</h2>
+                <p className="text-[9px] text-[var(--text-dim)] mb-3">สถิติจาก AW Events ทั้งหมด</p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <MiniStat
+                    label="Win Rate"
+                    value={`${recovery.win_rate}%`}
+                    sub={`${recovery.win_count}W / ${recovery.loss_count}L`}
+                    color={recovery.win_rate >= 50 ? 'text-green-500' : 'text-red-400'}
+                  />
+                  <MiniStat
+                    label="Avg Duration"
+                    value={`${recovery.avg_duration} min`}
+                    sub={`max ${recovery.max_duration} min`}
+                  />
+                  <MiniStat
+                    label="Avg Peak DD"
+                    value={formatPnl(convert(recovery.avg_peak_dd), symbol)}
+                    sub={`worst ${formatPnl(convert(recovery.worst_dd), symbol)}`}
+                    color="text-red-400"
+                  />
+                  <MiniStat
+                    label="Trigger → End"
+                    value={formatPnl(convert(recovery.avg_end_pnl), symbol)}
+                    sub={`trigger ${formatPnl(convert(recovery.avg_trigger_pnl), symbol)}`}
+                    color={pnlColor(recovery.avg_end_pnl)}
+                  />
+                </div>
+
+                {/* BUY vs SELL direction bar */}
+                {(recovery.buy_triggers > 0 || recovery.sell_triggers > 0) && (
+                  <div>
+                    <div className="text-[10px] text-[var(--text-dim)] mb-1.5">Trigger Direction</div>
+                    <div className="flex h-5 rounded-lg overflow-hidden">
+                      {recovery.buy_triggers > 0 && (
+                        <div
+                          className="bg-blue-500/40 flex items-center justify-center transition-all duration-500"
+                          style={{ width: `${(recovery.buy_triggers / (recovery.buy_triggers + recovery.sell_triggers)) * 100}%` }}
+                        >
+                          <span className="text-[9px] font-mono font-bold text-blue-300">
+                            BUY {recovery.buy_triggers}
+                          </span>
+                        </div>
+                      )}
+                      {recovery.sell_triggers > 0 && (
+                        <div
+                          className="bg-red-500/40 flex items-center justify-center transition-all duration-500"
+                          style={{ width: `${(recovery.sell_triggers / (recovery.buy_triggers + recovery.sell_triggers)) * 100}%` }}
+                        >
+                          <span className="text-[9px] font-mono font-bold text-red-300">
+                            SELL {recovery.sell_triggers}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Daily AW Timeline ── */}
+            {byDate.length > 0 && (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
+                <h2 className="text-sm font-semibold text-[var(--text-heading)] mb-1">AW รายวัน</h2>
+                <p className="text-[9px] text-[var(--text-dim)] mb-3">จำนวนครั้ง + PnL แต่ละวัน</p>
+                <div className="space-y-1">
+                  {byDate.slice(0, 14).map((d: any) => {
+                    const dateObj = new Date(d.date + 'T00:00:00');
+                    const dayLabel = dateObj.toLocaleDateString('th-TH', {
+                      weekday: 'short', day: 'numeric', month: 'short',
+                    });
+                    const countPct = (d.count / maxDateCount) * 100;
+                    return (
+                      <div key={d.date} className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-[var(--text-dim)] w-20 text-right shrink-0">
+                          {dayLabel}
+                        </span>
+                        <div className="flex-1 h-5 bg-[var(--bar-track)] rounded overflow-hidden relative">
+                          <div
+                            className={cn(
+                              'h-full rounded transition-all duration-500',
+                              d.pnl >= 0 ? 'bg-green-500/30' : 'bg-red-500/40'
+                            )}
+                            style={{ width: `${countPct}%` }}
+                          />
+                          <span className="absolute inset-0 flex items-center px-2 text-[9px] font-mono text-[var(--text-secondary)]">
+                            {d.count} trades
+                          </span>
+                        </div>
+                        <span className={cn('text-[10px] font-mono font-semibold w-16 text-right shrink-0', pnlColor(d.pnl))}>
+                          {formatPnl(convert(d.pnl), symbol)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {byDate.length > 14 && (
+                  <div className="text-[9px] text-[var(--text-dim)] text-center mt-2">
+                    แสดง 14 วันล่าสุด จากทั้งหมด {byDate.length} วัน
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* AW Weekly Trend — count + PnL */}
             {byWeek.length > 0 && (
@@ -322,8 +468,38 @@ export default function AWReportPage() {
               </div>
             )}
 
+            {/* ── AW Event Detail Cards ── */}
+            {events.length > 0 && (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--text-heading)]">AW Events</h2>
+                    <p className="text-[9px] text-[var(--text-dim)]">รายละเอียดแต่ละ event ({events.length} events)</p>
+                  </div>
+                  <button
+                    onClick={() => setShowEvents(!showEvents)}
+                    className="px-3 py-1 rounded-lg text-[10px] font-mono font-semibold bg-[var(--bg-page)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--text-dim)] transition-colors"
+                  >
+                    {showEvents ? 'ซ่อน' : 'แสดง'}
+                  </button>
+                </div>
+                {showEvents && (
+                  <div className="space-y-2">
+                    {events.slice(0, 30).map((e: any) => (
+                      <EventCard key={e.id} event={e} convert={convert} symbol={symbol} />
+                    ))}
+                    {events.length > 30 && (
+                      <div className="text-[9px] text-[var(--text-dim)] text-center mt-2">
+                        แสดง 30 จาก {events.length} events
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* No AW data message */}
-            {summary.total_aw_trades === 0 && (
+            {summary.total_aw_trades === 0 && events.length === 0 && (
               <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-8 text-center mb-4">
                 <div className="text-[var(--text-dim)] font-mono text-sm">
                   ไม่มี AW trades {filter.type === 'days' ? `ใน ${days} วันที่ผ่านมา` : `ช่วง ${filter.from} ถึง ${filter.to}`}
@@ -337,6 +513,8 @@ export default function AWReportPage() {
   );
 }
 
+/* ── Sub-components ── */
+
 function SummaryCard({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3">
@@ -344,6 +522,154 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
       <div className={cn('font-mono text-lg font-bold', color || 'text-[var(--text-heading)]')}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="bg-[var(--bg-page)] rounded-lg p-2.5">
+      <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider mb-0.5">{label}</div>
+      <div className={cn('font-mono text-sm font-bold', color || 'text-[var(--text-heading)]')}>
+        {value}
+      </div>
+      {sub && <div className="text-[9px] font-mono text-[var(--text-dim)] mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function InsightMetric({
+  label, today, avg, format, invertColor, symbol: sym, convert: conv,
+}: {
+  label: string;
+  today: number;
+  avg: number;
+  format: 'count' | 'minutes' | 'dollar';
+  invertColor?: boolean;
+  symbol?: string;
+  convert?: (v: number) => number;
+}) {
+  const diff = today - avg;
+  // For count/duration/DD: lower is better when invertColor
+  const isGood = invertColor ? diff <= 0 : diff >= 0;
+  const diffColor = diff === 0 ? 'text-slate-400' : isGood ? 'text-green-500' : 'text-red-400';
+
+  const formatVal = (v: number) => {
+    if (format === 'count') return String(v);
+    if (format === 'minutes') return `${v} min`;
+    if (format === 'dollar' && conv && sym) return `${sym}${Math.abs(conv(v)).toFixed(0)}`;
+    return String(v);
+  };
+
+  const diffStr = diff === 0 ? '-' : `${diff > 0 ? '+' : ''}${format === 'dollar' && conv && sym
+    ? `${sym}${Math.abs(conv(diff)).toFixed(0)}`
+    : format === 'minutes' ? `${diff} min` : diff}`;
+
+  return (
+    <div className="bg-[var(--bg-page)] rounded-lg p-2.5 text-center">
+      <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider mb-1">{label}</div>
+      <div className="font-mono text-base font-bold text-[var(--text-heading)]">
+        {formatVal(today)}
+      </div>
+      <div className="text-[9px] font-mono text-[var(--text-dim)] mt-0.5">
+        avg {formatVal(avg)}
+      </div>
+      <div className={cn('text-[10px] font-mono font-semibold mt-0.5', diffColor)}>
+        {diffStr}
+      </div>
+    </div>
+  );
+}
+
+function EventCard({
+  event: e, convert: conv, symbol: sym,
+}: {
+  event: any;
+  convert: (v: number) => number;
+  symbol: string;
+}) {
+  const triggerTime = new Date(e.triggered_at);
+  const timeStr = triggerTime.toLocaleString('th-TH', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+  const isActive = !e.ended_at;
+  const isWin = e.end_reason === 'AW_TP';
+
+  return (
+    <div className={cn(
+      'rounded-lg border p-3 transition-colors',
+      isActive
+        ? 'border-orange-500/30 bg-orange-500/5'
+        : isWin
+          ? 'border-green-500/20 bg-green-500/5'
+          : 'border-[var(--border)] bg-[var(--bg-page)]'
+    )}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            'w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-mono font-bold shrink-0',
+            isActive ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+              : isWin ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+          )}>
+            {e.avatar_text || String(e.account_number).slice(-2)}
+          </div>
+          <div>
+            <span className="text-[11px] font-mono text-[var(--text-body)]">
+              {e.account_name || e.account_number}
+            </span>
+            <span className="text-[9px] text-[var(--text-dim)] ml-2">{timeStr}</span>
+          </div>
+        </div>
+        <span className={cn(
+          'text-[9px] font-mono font-bold px-1.5 py-0.5 rounded',
+          isActive ? 'bg-orange-500/20 text-orange-400'
+            : isWin ? 'bg-green-500/20 text-green-400'
+            : 'bg-red-500/20 text-red-400'
+        )}>
+          {isActive ? 'ACTIVE' : e.end_reason || 'DONE'}
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <div>
+          <div className="text-[8px] text-[var(--text-dim)] uppercase">Direction</div>
+          <div className={cn('text-[10px] font-mono font-bold',
+            e.trigger_direction === 'BUY' ? 'text-blue-400' : 'text-red-400'
+          )}>
+            {e.trigger_direction || '-'}
+          </div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[var(--text-dim)] uppercase">Duration</div>
+          <div className="text-[10px] font-mono font-bold text-[var(--text-body)]">
+            {isActive ? 'ongoing' : `${e.duration_minutes} min`}
+          </div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[var(--text-dim)] uppercase">Peak DD</div>
+          <div className="text-[10px] font-mono font-bold text-red-400">
+            {e.peak_dd ? formatPnl(conv(e.peak_dd), sym) : '-'}
+          </div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[var(--text-dim)] uppercase">End PnL</div>
+          <div className={cn('text-[10px] font-mono font-bold', pnlColor(e.end_pnl))}>
+            {e.ended_at ? formatPnl(conv(e.end_pnl), sym) : '-'}
+          </div>
+        </div>
+      </div>
+      {e.trigger_orders > 0 && (
+        <div className="flex gap-3 mt-1.5 pt-1.5 border-t border-[var(--border)]">
+          <span className="text-[9px] font-mono text-[var(--text-dim)]">
+            Trigger: {e.trigger_orders} orders @ {formatPnl(conv(e.trigger_pnl), sym)}
+          </span>
+          {e.aw_orders_max > 0 && (
+            <span className="text-[9px] font-mono text-[var(--text-dim)]">
+              Max AW orders: {e.aw_orders_max}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

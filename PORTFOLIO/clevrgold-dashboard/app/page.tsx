@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
 import { cn, formatMoney, formatPnl, pnlColor } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
@@ -17,7 +17,18 @@ export default function PortfolioPage() {
   const [orderFilter, setOrderFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [editingThreshold, setEditingThreshold] = useState<string | null>(null);
+  const [thresholdValue, setThresholdValue] = useState('');
   const { convert, symbol } = useCurrency();
+
+  const { data, error, isLoading, mutate } = useSWR('/api/portfolio', fetcher, {
+    refreshInterval: 5000,
+    revalidateOnFocus: true,
+    errorRetryCount: 5,
+    errorRetryInterval: 3000,
+    shouldRetryOnError: true,
+    keepPreviousData: true,
+  });
 
   const handleToggleLock = async (accountNumber: number, lock: boolean) => {
     await fetch(`/api/account/${accountNumber}/lock`, {
@@ -28,14 +39,24 @@ export default function PortfolioPage() {
     mutate();
   };
 
-  const { data, error, isLoading, mutate } = useSWR('/api/portfolio', fetcher, {
-    refreshInterval: 5000,
-    revalidateOnFocus: true,
-    errorRetryCount: 5,
-    errorRetryInterval: 3000,
-    shouldRetryOnError: true,
-    keepPreviousData: true,
-  });
+  const handleToggleAutoLock = useCallback(async (pairGroup: string, enabled: boolean) => {
+    await fetch('/api/pair-groups', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pair_group: pairGroup, auto_lock_enabled: enabled }),
+    });
+    mutate();
+  }, [mutate]);
+
+  const handleSetThreshold = useCallback(async (pairGroup: string, value: number) => {
+    await fetch('/api/pair-groups', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pair_group: pairGroup, auto_lock_threshold: value }),
+    });
+    setEditingThreshold(null);
+    mutate();
+  }, [mutate]);
 
   // Portfolio stats with date filter
   const dateParams = dateRange.from || dateRange.to
@@ -280,13 +301,73 @@ export default function PortfolioPage() {
                     const pd = pair.reduce((s: number, a: any) => s + a.daily_pnl, 0);
                     const po = pair.reduce((s: number, a: any) => s + a.open_orders + a.aw_orders, 0);
                     const aw = pair.some((a: any) => a.aw_orders > 0);
+                    const autoLockOn = pair[0]?.auto_lock_enabled !== false;
+                    const threshold = pair[0]?.auto_lock_threshold ?? 3;
                     return (
                       <div key={pg}>
-                        {/* Pair label + Net PnL */}
+                        {/* Pair label + Auto-lock + Net PnL */}
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/25">
                             {pg}
                           </span>
+                          {/* Auto-lock toggle */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleToggleAutoLock(pg, !autoLockOn);
+                            }}
+                            className={cn(
+                              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold transition-colors border',
+                              autoLockOn
+                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                                : 'bg-[var(--bg-card)] text-[var(--text-dim)] border-[var(--border)]'
+                            )}
+                            title={autoLockOn ? 'Auto-lock เปิด — คลิกเพื่อปิด' : 'Auto-lock ปิด — คลิกเพื่อเปิด'}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill={autoLockOn ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            AUTO
+                          </button>
+                          {/* Threshold config */}
+                          {autoLockOn && (
+                            editingThreshold === pg ? (
+                              <form
+                                className="flex items-center gap-1"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const v = parseFloat(thresholdValue);
+                                  if (!isNaN(v) && v >= 0) handleSetThreshold(pg, v);
+                                }}
+                              >
+                                <span className="text-[9px] text-[var(--text-dim)]">$</span>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  value={thresholdValue}
+                                  onChange={(e) => setThresholdValue(e.target.value)}
+                                  className="w-12 bg-[var(--bg-card)] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] font-mono text-[var(--text-body)] focus:outline-none focus:border-emerald-500/50"
+                                  autoFocus
+                                />
+                                <button type="submit" className="text-[9px] text-emerald-400 font-bold">OK</button>
+                                <button type="button" onClick={() => setEditingThreshold(null)} className="text-[9px] text-[var(--text-dim)]">X</button>
+                              </form>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setEditingThreshold(pg);
+                                  setThresholdValue(String(threshold));
+                                }}
+                                className="text-[9px] font-mono text-[var(--text-dim)] hover:text-[var(--text-secondary)] transition-colors"
+                                title="คลิกเพื่อแก้ threshold"
+                              >
+                                -${threshold}
+                              </button>
+                            )
+                          )}
                           <div className="flex-1 h-px bg-[var(--border)]" />
                           {po > 0 ? (
                             <span className={cn(

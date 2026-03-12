@@ -680,21 +680,25 @@ def sync_positions():
 def sync_lock_status(snapshot_data=None):
     """Pull lock status from DB and write per-account lock files.
     File: clevredge_locked_[account_number].txt  (content "1" = locked, "0" = unlocked)
-    Logic matches lib/lock.ts tri-state:
-      manual_lock = TRUE  → locked
-      manual_lock = FALSE → not locked (explicit override)
-      manual_lock = NULL  → auto: partner AW + this has no orders → locked
+
+    Lock priority (high → low):
+      1. manual_lock = TRUE   → LOCKED (manual override)
+      2. manual_lock = FALSE  → UNLOCKED (manual override)
+      3. auto_lock disabled   → UNLOCKED
+      4. Pair has AW orders   → LOCK BOTH accounts
+      5. Combined float < -$X → LOCK BOTH accounts
+      6. Otherwise            → UNLOCKED
 
     snapshot_data: optional dict { acc_num: (acc, bal, eq, float, margin, free, ml, daily, weekly, open, aw, mode, tp, spread) }
-                   to avoid re-querying snapshot table.
     """
     conn = get_conn()
     cur = conn.cursor()
 
     if snapshot_data:
-        # Lightweight: only need manual_lock + pair_group (no JOIN)
         cur.execute("""
-            SELECT account_number, pair_group, manual_lock
+            SELECT account_number, pair_group, manual_lock,
+                   COALESCE(auto_lock_enabled, true),
+                   COALESCE(auto_lock_threshold, 3.0)
             FROM accounts WHERE is_active = TRUE
         """)
         rows = cur.fetchall()
@@ -708,14 +712,19 @@ def sync_lock_status(snapshot_data=None):
                 'account_number': acc_num,
                 'pair_group': r[1],
                 'manual_lock': r[2],
+                'auto_lock_enabled': r[3],
+                'auto_lock_threshold': float(r[4]) if r[4] else 3.0,
                 'aw_orders': snap[10] if snap else 0,
                 'open_orders': snap[9] if snap else 0,
+                'floating_pnl': snap[3] if snap else 0,
             })
     else:
-        # Fallback: full query (first run or no snapshot data)
         cur.execute("""
             SELECT a.account_number, a.pair_group, a.manual_lock,
-                   COALESCE(s.aw_orders, 0), COALESCE(s.open_orders, 0)
+                   COALESCE(a.auto_lock_enabled, true),
+                   COALESCE(a.auto_lock_threshold, 3.0),
+                   COALESCE(s.aw_orders, 0), COALESCE(s.open_orders, 0),
+                   COALESCE(s.floating_pnl, 0)
             FROM accounts a
             LEFT JOIN snapshots s ON a.account_number = s.account_number
             WHERE a.is_active = TRUE
@@ -729,29 +738,79 @@ def sync_lock_status(snapshot_data=None):
                 'account_number': r[0],
                 'pair_group': r[1],
                 'manual_lock': r[2],
-                'aw_orders': r[3],
-                'open_orders': r[4],
+                'auto_lock_enabled': r[3],
+                'auto_lock_threshold': float(r[4]) if r[4] else 3.0,
+                'aw_orders': r[5],
+                'open_orders': r[6],
+                'floating_pnl': float(r[7]),
             })
 
-    # Compute lock per account (same logic as lib/lock.ts)
-    lock_map = {}
+    # Build pair group lookup
+    pair_groups = {}
     for acc in accounts:
+        pg = acc['pair_group']
+        if pg:
+            if pg not in pair_groups:
+                pair_groups[pg] = []
+            pair_groups[pg].append(acc)
+
+    # Compute lock per account
+    lock_map = {}
+    lock_reasons = {}
+    for acc in accounts:
+        acc_num = acc['account_number']
+
+        # 1. Manual lock override
         if acc['manual_lock'] is True:
-            lock_map[acc['account_number']] = True
+            lock_map[acc_num] = True
+            lock_reasons[acc_num] = 'manual_lock'
             continue
+
+        # 2. Manual unlock override
         if acc['manual_lock'] is False:
-            lock_map[acc['account_number']] = False
+            lock_map[acc_num] = False
+            lock_reasons[acc_num] = 'manual_unlock'
             continue
-        # manual_lock is None → auto rules
+
+        # 3. Auto-lock disabled
+        if not acc['auto_lock_enabled']:
+            lock_map[acc_num] = False
+            lock_reasons[acc_num] = 'auto_disabled'
+            continue
+
+        # No pair group → no auto rules
+        pg = acc['pair_group']
+        if not pg or pg not in pair_groups:
+            lock_map[acc_num] = False
+            lock_reasons[acc_num] = 'no_pair'
+            continue
+
+        pair = pair_groups[pg]
         locked = False
-        if acc['pair_group'] and acc['open_orders'] == 0:
-            for partner in accounts:
-                if (partner['account_number'] != acc['account_number']
-                        and partner['pair_group'] == acc['pair_group']
-                        and partner['aw_orders'] > 0):
+        reason = 'ok'
+
+        # 4. AW Recovery — lock BOTH accounts in pair
+        if acc['aw_orders'] > 0:
+            locked = True
+            reason = f'self_aw({acc["aw_orders"]})'
+        else:
+            for partner in pair:
+                if partner['account_number'] != acc_num and partner['aw_orders'] > 0:
                     locked = True
+                    reason = f'partner_aw({partner["account_number"]}:{partner["aw_orders"]})'
                     break
-        lock_map[acc['account_number']] = locked
+
+        # 5. Combined floating PnL < -threshold
+        if not locked:
+            threshold = acc['auto_lock_threshold']
+            if threshold > 0:
+                combined_float = sum(p['floating_pnl'] for p in pair)
+                if combined_float < -threshold:
+                    locked = True
+                    reason = f'combined_pnl({combined_float:.2f}<-{threshold})'
+
+        lock_map[acc_num] = locked
+        lock_reasons[acc_num] = reason
 
     # Write per-account lock files
     lock_dir = os.path.join(os.environ.get('APPDATA', ''), 'MetaQuotes', 'Terminal', 'Common', 'Files')
@@ -765,7 +824,8 @@ def sync_lock_status(snapshot_data=None):
             if is_locked:
                 locked_count += 1
         if locked_count:
-            log.info(f"Lock sync: {locked_count}/{len(lock_map)} locked")
+            reasons_str = ', '.join(f'{k}:{v}' for k, v in lock_reasons.items() if lock_map.get(k))
+            log.info(f"Lock sync: {locked_count}/{len(lock_map)} locked [{reasons_str}]")
     except Exception as e:
         log.error(f"Lock file write error: {e}")
 
