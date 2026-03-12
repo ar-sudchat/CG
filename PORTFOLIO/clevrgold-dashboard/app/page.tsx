@@ -317,18 +317,18 @@ export default function PortfolioPage() {
                               handleToggleAutoLock(pg, !autoLockOn);
                             }}
                             className={cn(
-                              'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold transition-colors border',
+                              'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-colors border',
                               autoLockOn
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
-                                : 'bg-[var(--bg-card)] text-[var(--text-dim)] border-[var(--border)]'
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                : 'bg-red-500/10 text-red-400/70 border-red-500/25'
                             )}
                             title={autoLockOn ? 'Auto-lock เปิด — คลิกเพื่อปิด' : 'Auto-lock ปิด — คลิกเพื่อเปิด'}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill={autoLockOn ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={autoLockOn ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                             </svg>
-                            AUTO
+                            {autoLockOn ? 'AUTO ON' : 'AUTO OFF'}
                           </button>
                           {/* Threshold config */}
                           {autoLockOn && (
@@ -341,18 +341,18 @@ export default function PortfolioPage() {
                                   if (!isNaN(v) && v >= 0) handleSetThreshold(pg, v);
                                 }}
                               >
-                                <span className="text-[9px] text-[var(--text-dim)]">$</span>
+                                <span className="text-[11px] text-[var(--text-dim)]">$</span>
                                 <input
                                   type="number"
                                   step="0.5"
                                   min="0"
                                   value={thresholdValue}
                                   onChange={(e) => setThresholdValue(e.target.value)}
-                                  className="w-12 bg-[var(--bg-card)] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] font-mono text-[var(--text-body)] focus:outline-none focus:border-emerald-500/50"
+                                  className="w-14 bg-[var(--bg-card)] border border-[var(--border)] rounded px-1.5 py-0.5 text-[11px] font-mono text-[var(--text-body)] focus:outline-none focus:border-emerald-500/50"
                                   autoFocus
                                 />
-                                <button type="submit" className="text-[9px] text-emerald-400 font-bold">OK</button>
-                                <button type="button" onClick={() => setEditingThreshold(null)} className="text-[9px] text-[var(--text-dim)]">X</button>
+                                <button type="submit" className="text-[11px] text-emerald-400 font-bold">OK</button>
+                                <button type="button" onClick={() => setEditingThreshold(null)} className="text-[11px] text-[var(--text-dim)]">X</button>
                               </form>
                             ) : (
                               <button
@@ -361,7 +361,7 @@ export default function PortfolioPage() {
                                   setEditingThreshold(pg);
                                   setThresholdValue(String(threshold));
                                 }}
-                                className="text-[9px] font-mono text-[var(--text-dim)] hover:text-[var(--text-secondary)] transition-colors"
+                                className="text-[11px] font-mono font-semibold text-yellow-400/80 hover:text-yellow-300 transition-colors px-1.5 py-0.5 rounded border border-yellow-500/20 bg-yellow-500/10"
                                 title="คลิกเพื่อแก้ threshold"
                               >
                                 -${threshold}
