@@ -31,15 +31,16 @@ interface Account {
   updated_at: string;
   seconds_ago?: number;
   is_offline?: boolean;
-  manual_lock?: boolean;
+  manual_lock?: boolean | null;
   is_locked?: boolean;
   lock_reason?: string | null;
   locked_by?: number | null;
 }
 
-export default function AccountCard({ account, isWeekend, onToggleLock }: { account: Account; isWeekend?: boolean; onToggleLock?: (accountNumber: number, lock: boolean) => void }) {
+export default function AccountCard({ account, isWeekend, onToggleLock }: { account: Account; isWeekend?: boolean; onToggleLock?: (accountNumber: number, lock: boolean | null) => void }) {
   const { convert, symbol } = useCurrency();
   const isAW = account.aw_orders > 0 || account.mode === 'AW';
+  const isMG = !isAW && ((account.buy_orders ?? 0) > 1 || (account.sell_orders ?? 0) > 1);
   const totalOrders = account.open_orders + account.aw_orders;
   const hasOrders = totalOrders > 0;
   const floatIsLoss = account.floating_pnl < 0;
@@ -49,8 +50,10 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
   // Determine card border/glow based on severity
   const cardBorder = isAW
     ? 'border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
-    : floatIsBigLoss
-      ? 'border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
+    : isMG
+      ? 'border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.15)]'
+      : floatIsBigLoss
+        ? 'border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
       : lowMargin
         ? 'border-orange-500/40'
         : warnMargin
@@ -71,10 +74,10 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
         )}
       >
         {/* Alert banner at top of card */}
-        {(isAW || floatIsBigLoss || lowMargin) && (
+        {(isAW || isMG || floatIsBigLoss || lowMargin) && (
           <div className={cn(
             'absolute top-0 left-0 right-0 h-0.5',
-            isAW ? 'bg-red-500' : floatIsBigLoss ? 'bg-red-500/70' : 'bg-orange-500'
+            isAW ? 'bg-red-500' : isMG ? 'bg-yellow-500' : floatIsBigLoss ? 'bg-red-500/70' : 'bg-orange-500'
           )} />
         )}
 
@@ -117,7 +120,12 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onToggleLock(account.account_number, !account.is_locked);
+                  // Tri-state: if manual override exists, reset to null (auto).
+                  // If null and locked (auto), force unlock. If null and unlocked, force lock.
+                  const newValue = account.manual_lock !== null && account.manual_lock !== undefined
+                    ? null
+                    : !account.is_locked;
+                  onToggleLock(account.account_number, newValue);
                 }}
                 className={cn(
                   'w-7 h-7 rounded-md flex items-center justify-center transition-all border',
@@ -183,6 +191,11 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
             {isAW && (
               <div className="text-[10px] font-mono text-red-400 mt-1 font-bold">
                 ⚠ AW RECOVERY — {account.aw_orders} orders
+              </div>
+            )}
+            {isMG && (
+              <div className="text-[10px] font-mono text-yellow-400 mt-1 font-bold">
+                MG ACTIVE — {account.open_orders} orders
               </div>
             )}
           </div>

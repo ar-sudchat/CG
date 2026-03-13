@@ -49,6 +49,15 @@ extern ENUM_TP_MODE   TP_Mode          = TP_DOLLAR;
 extern double         TP_Dollar        = 3.0;
 extern double         TP_Pips          = 10.0;
 extern double         MaxLotLimit      = 1.0;
+
+//+------------------------------------------------------------------+
+//| ══════ MARTINGALE ══════                                          |
+//+------------------------------------------------------------------+
+extern string         _MG_             = "======= MARTINGALE =======";
+extern bool           UseMartingale    = true;          // เปิด/ปิด มาร์ติงเกล
+extern double         MG_LossThreshold = 20.0;          // ขาดทุน ($) ก่อนเข้า MG
+extern double         MG_Lot           = 0.02;           // ล็อต MG
+
 extern bool           UseTrailing      = true;
 extern double         TrailStep        = 2.0;       // Trail step in USD ($)
 extern bool           TrailBreakeven   = false;     // false = lock at TP level immediately
@@ -66,7 +75,6 @@ extern double         NightLot         = 0.01;
 //| ══════ DD / AW ══════                                             |
 //+------------------------------------------------------------------+
 extern string         _DD_             = "======= DD / AW =======";
-extern double         BasketSL_Dollar  = 20.0;
 extern double         MaxDD_Percent    = 100.0;
 extern int            AW_MagicNumber   = 9751421;
 extern double         EmergencyDD      = 50.0;
@@ -146,7 +154,7 @@ double   g_dayPnL        = 0;
 double   g_totalPnL      = 0;
 int      g_scalpTPCount  = 0;
 int      g_scalpTPDay    = 0;
-int      g_basketSLCount = 0;
+// (BasketSL removed — AW Recovery EA triggers itself)
 int      g_awDayCount    = 0;
 int      g_lcCount       = 0;          // LossCut total
 int      g_lcDayCount    = 0;          // LossCut today
@@ -159,6 +167,8 @@ double   g_ddPeak        = 0;
 double   g_ddCurrent     = 0;
 // AW Cooldown
 datetime g_awCooldownEnd = 0;        // time when cooldown expires
+// Martingale
+bool     g_mgFired       = false;         // MG order already placed this cycle
 // Trailing
 bool     g_trailActive   = false;
 double   g_trailLock     = 0;
@@ -188,6 +198,7 @@ int OnInit()
          " Lot:", StartLot, " Night:", NightLot,
          " TP:", (TP_Mode==TP_DOLLAR ? "$"+DoubleToStr(TP_Dollar,1) : DoubleToStr(TP_Pips,0)+"pip"),
          UseTrailing ? " Trail:$"+DoubleToStr(TrailStep,1) : " Trail:OFF");
+   Print("MG:", UseMartingale?"ON $"+DoubleToStr(MG_LossThreshold,0)+"->"+DoubleToStr(MG_Lot,2):"OFF");
    Print("News:", UseNewsFilter?"ON":"OFF", " Before:", NewsMinsBefore, "m After:", NewsMinsAfter, "m");
 
    if(UseNewsFilter && !IsTesting()) LoadNews();
@@ -397,17 +408,19 @@ bool IsPairLocked()
 //+------------------------------------------------------------------+
 void RecoverAWState()
 {
-   int awOrd = 0, ourOrd = 0;
+   int awOrd = 0, ourOrd = 0, ourBuy = 0, ourSell = 0;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderSymbol() != Symbol() || OrderType() > OP_SELL) continue;
       if(OrderMagicNumber() == AW_MagicNumber) awOrd++;
-      if(OrderMagicNumber() == MagicNumber) ourOrd++;
+      if(OrderMagicNumber() == MagicNumber)
+      { ourOrd++; if(OrderType()==OP_BUY) ourBuy++; else ourSell++; }
    }
+   // Recover MG state: ถ้ามีมากกว่า 1 ออเดอร์ฝั่งเดียวกัน = MG เคยเปิดแล้ว
+   if(ourBuy > 1 || ourSell > 1) g_mgFired = true;
+
    if(awOrd > 0)
-   { g_isWaitAW = true; g_awSimStart = TimeCurrent(); g_rcRound++; }
-   else if(ourOrd > 0 && CalcPnL(OP_BUY) + CalcPnL(OP_SELL) <= -BasketSL_Dollar)
    { g_isWaitAW = true; g_awSimStart = TimeCurrent(); g_rcRound++; }
 }
 
@@ -423,7 +436,8 @@ void OnTick()
    if(g_isWaitAW) { HandleWaitAW(); return; }
 
    ManageTP();
-   CheckBasketSL();
+   CheckMartingale();
+   CheckAWOrders();
    if(g_isWaitAW) { DrawMini("WAIT AW"); return; }
    if(CheckMaxDD()) { DrawMini("DD LIMIT!"); return; }
    if(CheckLossCut()) { DrawMini("LOSS CUT!"); return; }
@@ -497,6 +511,26 @@ void DoTrade()
    else g_lastAction = "SKIP (no side)";
 }
 
+//+------------------------------------------------------------------+
+//| MARTINGALE — add 1 MG order when loss >= threshold               |
+//+------------------------------------------------------------------+
+void CheckMartingale()
+{
+   if(!UseMartingale || g_mgFired || g_isWaitAW) return;
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   if(buys + sells == 0) return;   // no open orders
+
+   double pnl = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+   if(pnl >= -MG_LossThreshold) return;   // loss not yet reached threshold
+
+   // Determine side: add to the losing side
+   double lot = NormLot(MG_Lot);
+   if(buys > 0 && sells == 0)
+   { OpenOrder(OP_BUY, lot); g_mgFired = true; g_lastAction = "MG BUY " + DoubleToStr(lot,2); }
+   else if(sells > 0 && buys == 0)
+   { OpenOrder(OP_SELL, lot); g_mgFired = true; g_lastAction = "MG SELL " + DoubleToStr(lot,2); }
+}
+
 void OpenOrder(int type, double lot)
 {
    lot = NormLot(lot);
@@ -515,12 +549,17 @@ void ManageTP()
    if(UseTrailing) { ManageTrailingTP(); return; }
 
    double tp = GetTPTarget(); if(tp <= 0) return;
-   double bpnl = CalcPnL(OP_BUY);
-   if(CntOrd(OP_BUY) > 0 && bpnl >= tp)
-   { CloseAll(OP_BUY); g_scalpTPCount++; g_scalpTPDay++; g_lastAction = "BUY TP! $" + DoubleToStr(bpnl,2); SetCooldown(); }
-   double spnl = CalcPnL(OP_SELL);
-   if(CntOrd(OP_SELL) > 0 && spnl >= tp)
-   { CloseAll(OP_SELL); g_scalpTPCount++; g_scalpTPDay++; g_lastAction = "SELL TP! $" + DoubleToStr(spnl,2); SetCooldown(); }
+   // Basket TP: รวม PnL ทุกออเดอร์ (ตัวหลัก + MG) ต้องบวกตาม TP ถึงปิด
+   double totalPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   if(buys + sells > 0 && totalPnL >= tp)
+   {
+      if(buys > 0) CloseAll(OP_BUY);
+      if(sells > 0) CloseAll(OP_SELL);
+      g_scalpTPCount++; g_scalpTPDay++;
+      g_lastAction = "BASKET TP! $" + DoubleToStr(totalPnL,2);
+      SetCooldown();
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -530,89 +569,10 @@ void ManageTP()
 void ManageTrailingTP()
 {
    double tp = GetTPTarget(); if(tp <= 0) return;
-   double tv = MarketInfo(Symbol(), MODE_TICKVALUE);
-   double ts = MarketInfo(Symbol(), MODE_TICKSIZE);
-   if(tv <= 0 || ts <= 0) return;
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   int totalOrders = buys + sells;
 
-   int totalOrders = 0;
-
-   for(int i = OrdersTotal()-1; i >= 0; i--)
-   {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
-      if(OrderType() > OP_SELL) continue;
-
-      totalOrders++;
-      double profit = OrderProfit() + OrderSwap() + OrderCommission();
-
-      // --- Profit >= TP: update lock & set SL ---
-      if(profit >= tp)
-      {
-         g_trailActive = true;
-
-         int steps = (int)MathFloor((profit - tp) / TrailStep);
-         double newLock;
-         if(TrailBreakeven)
-         {
-            if(steps == 0)
-               newLock = 0;
-            else
-               newLock = tp + (steps - 1) * TrailStep;
-         }
-         else
-         {
-            newLock = tp + steps * TrailStep;
-         }
-         if(newLock > g_trailLock) g_trailLock = newLock;
-
-         // Convert lock $ to SL price
-         double offset = g_trailLock * ts / (OrderLots() * tv);
-         double newSL;
-
-         if(OrderType() == OP_BUY)
-         {
-            newSL = NormalizeDouble(OrderOpenPrice() + offset, Digits);
-            if(OrderStopLoss() < Point || newSL > OrderStopLoss() + Point)
-            {
-               if(!OrderModify(OrderTicket(), OrderOpenPrice(), newSL, 0, 0, clrLime))
-                  Print("Trail BUY SL err:", GetLastError(), " SL=", newSL);
-            }
-         }
-         else
-         {
-            newSL = NormalizeDouble(OrderOpenPrice() - offset, Digits);
-            if(OrderStopLoss() < Point || newSL < OrderStopLoss() - Point)
-            {
-               if(!OrderModify(OrderTicket(), OrderOpenPrice(), newSL, 0, 0, clrOrangeRed))
-                  Print("Trail SELL SL err:", GetLastError(), " SL=", newSL);
-            }
-         }
-         g_lastAction = "TRAIL Lock:$" + DoubleToStr(g_trailLock,1) + " Now:$" + DoubleToStr(profit,1);
-      }
-      // --- Safety: profit dropped below lock → close at market ---
-      else if(g_trailLock > 0 && profit < g_trailLock)
-      {
-         Print("TRAIL SAFETY CLOSE #", OrderTicket(),
-               " Lock=$", DoubleToStr(g_trailLock,1),
-               " Profit=$", DoubleToStr(profit,2));
-         bool closed = false;
-         if(OrderType() == OP_BUY)
-            closed = OrderClose(OrderTicket(), OrderLots(), MarketInfo(Symbol(), MODE_BID), 3, clrLime);
-         else
-            closed = OrderClose(OrderTicket(), OrderLots(), MarketInfo(Symbol(), MODE_ASK), 3, clrOrangeRed);
-
-         if(closed)
-         {
-            g_scalpTPCount++; g_scalpTPDay++;
-            g_lastAction = "SAFE TP $" + DoubleToStr(profit,1);
-            SetCooldown();
-         }
-         else
-            Print("Trail safety close err:", GetLastError());
-      }
-   }
-
-   // Reset only when no orders remain
+   // Reset when no orders
    if(totalOrders == 0)
    {
       if(g_trailActive)
@@ -623,6 +583,36 @@ void ManageTrailingTP()
       }
       g_trailActive = false;
       g_trailLock = 0;
+      return;
+   }
+
+   // Basket PnL: รวมทุกออเดอร์ (ตัวหลัก + MG)
+   double basketPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+
+   // --- Basket profit >= TP: update lock ---
+   if(basketPnL >= tp)
+   {
+      g_trailActive = true;
+      int steps = (int)MathFloor((basketPnL - tp) / TrailStep);
+      double newLock;
+      if(TrailBreakeven)
+         newLock = (steps == 0) ? 0 : tp + (steps - 1) * TrailStep;
+      else
+         newLock = tp + steps * TrailStep;
+      if(newLock > g_trailLock) g_trailLock = newLock;
+      g_lastAction = "TRAIL Lock:$" + DoubleToStr(g_trailLock,1) + " Now:$" + DoubleToStr(basketPnL,1);
+   }
+   // --- Safety: basket profit dropped below lock → close all at market ---
+   else if(g_trailLock > 0 && basketPnL < g_trailLock)
+   {
+      Print("TRAIL SAFETY CLOSE basket Lock=$", DoubleToStr(g_trailLock,1),
+            " PnL=$", DoubleToStr(basketPnL,2));
+      if(buys > 0) CloseAll(OP_BUY);
+      if(sells > 0) CloseAll(OP_SELL);
+      g_scalpTPCount++; g_scalpTPDay++;
+      g_lastAction = "SAFE TP $" + DoubleToStr(basketPnL,1);
+      SetCooldown();
+      g_trailActive = false; g_trailLock = 0;
    }
 }
 
@@ -646,17 +636,17 @@ double GetTPTarget()
 //+------------------------------------------------------------------+
 //| BASKET SL / AW                                                    |
 //+------------------------------------------------------------------+
-void CheckBasketSL()
+// เช็คว่า AW Recovery EA เริ่มเปิดออเดอร์หรือยัง → หยุดเทรดรอ
+void CheckAWOrders()
 {
-   if(CntOrd(OP_BUY) + CntOrd(OP_SELL) == 0) return;
-   g_totalPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
-   if(g_totalPnL <= -BasketSL_Dollar)
+   if(g_isWaitAW) return;
+   if(CntAW() > 0)
    {
-      g_basketSLCount++; g_awDayCount++;
+      g_awDayCount++;
       g_isWaitAW = true; g_rcRound++; g_rcCurrentDD = 0;
-      g_awSimStart = TimeCurrent();
-      g_lastAction = "DD HIT! -> Wait AW";
-      Print(">>> BASKET SL #", g_basketSLCount, " $", DoubleToStr(g_totalPnL, 2));
+      g_awSimStart = TimeCurrent(); g_mgFired = false;
+      g_lastAction = "AW DETECTED -> Wait";
+      Print(">>> AW DETECTED, switching to wait mode");
    }
 }
 
@@ -720,6 +710,7 @@ bool IsNewBar() { if(g_lastBar != Time[0]) { g_lastBar = Time[0]; return true; }
 
 void SetCooldown()
 {
+   g_mgFired = false;   // reset MG flag for next cycle
    if(CooldownMin > 0) { g_awCooldownEnd = TimeCurrent() + CooldownMin * 60; g_lastBar = Time[0]; }
 }
 
@@ -932,8 +923,8 @@ void DrawMini(string status)
       // No AW → show normal
       color pClr = (eaPnL >= 0) ? C'100,230,100' : C'255,80,80';
       string ddBar = "";
-      if(BasketSL_Dollar > 0 && eaPnL < 0)
-      { double r = MathAbs(eaPnL)/BasketSL_Dollar; ddBar = (r>=0.8)?" !!!":(r>=0.5)?" !!":(r>=0.25)?" !":""; }
+      if(UseMartingale && MG_LossThreshold > 0 && eaPnL < 0)
+      { double r = MathAbs(eaPnL)/MG_LossThreshold; ddBar = (r>=1.0)?" MG!":(r>=0.5)?" !":""; }
       MiniLab("l2", cx, y, (eaPnL>=0?"+":"") + DoubleToStr(eaPnL,2) + "$ | " +
               IntegerToString(eaOrd) + "ord" + ddBar, pClr, 9);
    }
@@ -955,7 +946,7 @@ void DrawMini(string status)
    color dClr = (g_dayPnL >= 0) ? C'100,230,100' : C'255,80,80';
    string l4Txt = "Day:" + (g_dayPnL>=0?"+":"") + DoubleToStr(g_dayPnL,2) +
            " TP:" + IntegerToString(g_scalpTPDay) + "/" + IntegerToString(g_scalpTPCount) +
-           " SL:" + IntegerToString(g_awDayCount) + "/" + IntegerToString(g_basketSLCount);
+           " AW:" + IntegerToString(g_awDayCount);
    if(g_lcCount > 0) l4Txt += " LC:" + IntegerToString(g_lcDayCount) + "/" + IntegerToString(g_lcCount);
    MiniLab("l4", cx, y, l4Txt, dClr, 8); y += LH;
 
