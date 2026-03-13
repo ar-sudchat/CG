@@ -589,6 +589,20 @@ void ManageTrailingTP()
    // Basket PnL: รวมทุกออเดอร์ (ตัวหลัก + MG)
    double basketPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
 
+   // --- เช็คปิดก่อน: ถ้า profit ตกต่ำกว่า lock → ปิดทันที ---
+   if(g_trailLock > 0 && basketPnL < g_trailLock)
+   {
+      Print("TRAIL SAFETY CLOSE basket Lock=$", DoubleToStr(g_trailLock,1),
+            " PnL=$", DoubleToStr(basketPnL,2));
+      if(buys > 0) CloseAll(OP_BUY);
+      if(sells > 0) CloseAll(OP_SELL);
+      g_scalpTPCount++; g_scalpTPDay++;
+      g_lastAction = "SAFE TP $" + DoubleToStr(basketPnL,1);
+      SetCooldown();
+      g_trailActive = false; g_trailLock = 0;
+      return;
+   }
+
    // --- Basket profit >= TP: update lock ---
    if(basketPnL >= tp)
    {
@@ -601,18 +615,6 @@ void ManageTrailingTP()
          newLock = tp + steps * TrailStep;
       if(newLock > g_trailLock) g_trailLock = newLock;
       g_lastAction = "TRAIL Lock:$" + DoubleToStr(g_trailLock,1) + " Now:$" + DoubleToStr(basketPnL,1);
-   }
-   // --- Safety: basket profit dropped below lock → close all at market ---
-   else if(g_trailLock > 0 && basketPnL < g_trailLock)
-   {
-      Print("TRAIL SAFETY CLOSE basket Lock=$", DoubleToStr(g_trailLock,1),
-            " PnL=$", DoubleToStr(basketPnL,2));
-      if(buys > 0) CloseAll(OP_BUY);
-      if(sells > 0) CloseAll(OP_SELL);
-      g_scalpTPCount++; g_scalpTPDay++;
-      g_lastAction = "SAFE TP $" + DoubleToStr(basketPnL,1);
-      SetCooldown();
-      g_trailActive = false; g_trailLock = 0;
    }
 }
 
