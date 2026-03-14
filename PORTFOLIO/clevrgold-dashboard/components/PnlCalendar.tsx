@@ -168,9 +168,9 @@ export default function PnlCalendar() {
                       );
                     })}
                     {/* Week total */}
-                    <td className="pl-2">
+                    <td className="pl-1 pr-2">
                       {weekHasData ? (
-                        <div className="flex flex-col items-end justify-center min-h-[44px]">
+                        <div className="flex items-center justify-end min-h-[44px]">
                           <span className={cn(
                             'text-[10px] font-mono font-bold',
                             weekTotal >= 0 ? 'text-green-400/70' : 'text-red-400/70'
@@ -184,6 +184,21 @@ export default function PnlCalendar() {
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-[#1e2a3a]">
+                <td colSpan={7} className="py-2.5 pl-3">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Month Total</span>
+                </td>
+                <td className="py-2.5 pr-2 text-right">
+                  <span className={cn(
+                    'font-mono text-xs font-bold',
+                    monthTotal >= 0 ? 'text-green-400' : 'text-red-400'
+                  )}>
+                    {monthTotal >= 0 ? '+' : '-'}{symbol}{Math.abs(convert(monthTotal)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}

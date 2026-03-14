@@ -35,7 +35,6 @@ export default function FinancePage() {
   // Form state
   const [formAccount, setFormAccount] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
-  const [formType, setFormType] = useState<'withdrawal' | 'deposit'>('withdrawal');
   const [formAmount, setFormAmount] = useState('');
   const [formNote, setFormNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -68,12 +67,22 @@ export default function FinancePage() {
 
   // Grand totals
   const grandTotal = useMemo(() => {
-    let withdrawal = 0, deposit = 0;
+    let withdrawal = 0;
     for (const w of weeksSummary) {
       withdrawal += w.withdrawal;
-      deposit += w.deposit;
     }
-    return { withdrawal, deposit, net: deposit - withdrawal };
+    return { withdrawal };
+  }, [weeksSummary]);
+
+  // Weekly average
+  const weeklyAvg = useMemo(() => {
+    if (weeksSummary.length === 0) return 0;
+    return grandTotal.withdrawal / weeksSummary.filter(w => w.withdrawal > 0).length || 0;
+  }, [weeksSummary, grandTotal]);
+
+  // Max withdrawal in a week (for bar chart scale)
+  const maxWeekWithdrawal = useMemo(() => {
+    return Math.max(...weeksSummary.map(w => w.withdrawal), 1);
   }, [weeksSummary]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,7 +96,7 @@ export default function FinancePage() {
         body: JSON.stringify({
           account_number: parseInt(formAccount),
           entry_date: formDate,
-          type: formType,
+          type: 'withdrawal',
           amount: parseFloat(formAmount),
           note: formNote || null,
         }),
@@ -116,7 +125,8 @@ export default function FinancePage() {
   };
 
   function formatWeekLabel(dateStr: string) {
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return dateStr;
     const weekNum = getISOWeek(d);
     const mon = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     const fri = new Date(d.getTime() + 4 * 86400000);
@@ -134,14 +144,15 @@ export default function FinancePage() {
 
   function formatEntryDate(dateStr: string) {
     const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return dateStr || 'No date';
     return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   return (
-    <div className="p-4 space-y-4 pb-20 md:pb-4">
+    <div className="p-4 space-y-4 pb-20 md:pb-4 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-lg font-bold text-[var(--text-heading)]">Finance Journal</h1>
+        <h1 className="text-lg font-bold text-[var(--text-heading)]">Withdrawal Journal</h1>
         <button
           onClick={() => setShowForm(!showForm)}
           className={cn(
@@ -151,7 +162,7 @@ export default function FinancePage() {
               : 'bg-[var(--gold)]/20 text-[var(--gold)] hover:bg-[var(--gold)]/30'
           )}
         >
-          {showForm ? 'Cancel' : '+ New Entry'}
+          {showForm ? 'Cancel' : '+ New Withdrawal'}
         </button>
       </div>
 
@@ -191,7 +202,7 @@ export default function FinancePage() {
       {/* New Entry Form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Account</label>
               <select
@@ -201,7 +212,7 @@ export default function FinancePage() {
               >
                 {accounts.map((a: any) => (
                   <option key={a.account_number} value={a.account_number}>
-                    {a.account_number}
+                    {a.account_number} – {a.name}
                   </option>
                 ))}
               </select>
@@ -214,35 +225,6 @@ export default function FinancePage() {
                 onChange={(e) => setFormDate(e.target.value)}
                 className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-body)] font-mono"
               />
-            </div>
-            <div>
-              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Type</label>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setFormType('withdrawal')}
-                  className={cn(
-                    'flex-1 py-2 text-[11px] font-semibold rounded-lg transition-colors',
-                    formType === 'withdrawal'
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      : 'bg-[var(--bg-input)] text-[var(--text-secondary)] border border-[var(--border)]'
-                  )}
-                >
-                  Withdraw
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormType('deposit')}
-                  className={cn(
-                    'flex-1 py-2 text-[11px] font-semibold rounded-lg transition-colors',
-                    formType === 'deposit'
-                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                      : 'bg-[var(--bg-input)] text-[var(--text-secondary)] border border-[var(--border)]'
-                  )}
-                >
-                  Deposit
-                </button>
-              </div>
             </div>
             <div>
               <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Amount (USD)</label>
@@ -264,7 +246,7 @@ export default function FinancePage() {
               type="text"
               value={formNote}
               onChange={(e) => setFormNote(e.target.value)}
-              placeholder="e.g. เบิกกำไรสัปดาห์ที่ 9"
+              placeholder="e.g. profit week 9"
               className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-body)]"
             />
           </div>
@@ -295,153 +277,132 @@ export default function FinancePage() {
         </div>
       ) : (
         <>
-          {/* Grand Total */}
+          {/* Summary Cards */}
           {weeksSummary.length > 0 && (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
-              <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-2">Total ({weeks} weeks)</div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <div className="text-[10px] text-red-400/70 uppercase">Withdrawal</div>
-                  <div className="font-mono text-sm font-bold text-red-400">
-                    -{formatMoney(convert(grandTotal.withdrawal), symbol)}
-                  </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+                <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                  Total Withdrawn ({weeks}W)
                 </div>
-                <div>
-                  <div className="text-[10px] text-green-400/70 uppercase">Deposit</div>
-                  <div className="font-mono text-sm font-bold text-green-400">
-                    +{formatMoney(convert(grandTotal.deposit), symbol)}
-                  </div>
+                <div className="font-mono text-lg font-bold text-[var(--text-heading)]">
+                  {formatMoney(convert(grandTotal.withdrawal), symbol)}
                 </div>
-                <div>
-                  <div className="text-[10px] text-[var(--text-secondary)] uppercase">Net</div>
-                  <div className={cn(
-                    'font-mono text-sm font-bold',
-                    grandTotal.net >= 0 ? 'text-green-400' : 'text-red-400'
-                  )}>
-                    {grandTotal.net >= 0 ? '+' : '-'}{formatMoney(convert(Math.abs(grandTotal.net)), symbol)}
-                  </div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-1">
+                  {entries.length} transactions
+                </div>
+              </div>
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+                <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                  Weekly Average
+                </div>
+                <div className="font-mono text-lg font-bold text-[var(--text-heading)]">
+                  {formatMoney(convert(weeklyAvg), symbol)}
+                </div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-1">
+                  per active week
                 </div>
               </div>
             </div>
           )}
 
-          {/* Two-column layout: Weekly Summary + Entry Log */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Left: Weekly Summary */}
-            <div className="space-y-3">
-              <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Weekly Summary</h2>
-              {weeksSummary.length === 0 ? (
-                <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 text-center">
-                  <div className="text-slate-500 text-sm">No entries yet</div>
-                </div>
-              ) : (
-                weeksSummary.map((w) => (
-                  <div key={w.week_start} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-3">
-                    <div className="text-xs font-semibold text-[var(--text-body)] mb-2">
-                      {formatWeekLabel(w.week_start)}
-                    </div>
-                    <div className="space-y-1">
-                      {w.withdrawal > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-red-400/70">Withdraw</span>
-                          <span className="font-mono text-red-400">-{formatMoney(convert(w.withdrawal), symbol)}</span>
-                        </div>
-                      )}
-                      {w.deposit > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-green-400/70">Deposit</span>
-                          <span className="font-mono text-green-400">+{formatMoney(convert(w.deposit), symbol)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xs pt-1 border-t border-[var(--border)]">
-                        <span className="text-[var(--text-secondary)]">Net</span>
-                        <span className={cn(
-                          'font-mono font-semibold',
-                          w.net >= 0 ? 'text-green-400' : 'text-red-400'
-                        )}>
-                          {w.net >= 0 ? '+' : '-'}{formatMoney(convert(Math.abs(w.net)), symbol)}
+          {/* Weekly Breakdown */}
+          {weeksSummary.length > 0 && (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4">
+              <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Weekly Breakdown</h2>
+              <div className="space-y-2.5">
+                {weeksSummary.map((w) => {
+                  const pct = (w.withdrawal / maxWeekWithdrawal) * 100;
+                  return (
+                    <div key={w.week_start}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-[var(--text-secondary)] font-mono text-[11px]">
+                          {formatWeekLabel(w.week_start)}
+                        </span>
+                        <span className="font-mono font-semibold text-[var(--text-body)]">
+                          {formatMoney(convert(w.withdrawal), symbol)}
                         </span>
                       </div>
+                      <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-slate-500/50 transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  );
+                })}
+              </div>
             </div>
+          )}
 
-            {/* Right: Entry Log */}
-            <div className="lg:col-span-2 space-y-3">
-              <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Entries</h2>
-              {entries.length === 0 ? (
-                <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 text-center">
-                  <div className="text-slate-500 text-sm">No entries found</div>
-                  <div className="text-slate-600 text-xs mt-1">Click &ldquo;+ New Entry&rdquo; to add your first record</div>
-                </div>
-              ) : (
-                <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">
-                  {entries.map((entry, i) => {
-                    const isWithdrawal = entry.type === 'withdrawal';
-                    const prevDate = i > 0 ? entries[i - 1].entry_date : null;
-                    const showDateHeader = entry.entry_date !== prevDate;
+          {/* Entry Log */}
+          <div className="space-y-3">
+            <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Transactions</h2>
+            {entries.length === 0 ? (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-8 text-center">
+                <div className="text-slate-500 text-sm">No withdrawals yet</div>
+                <div className="text-slate-600 text-xs mt-1">Click &ldquo;+ New Withdrawal&rdquo; to record</div>
+              </div>
+            ) : (
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">
+                {entries.map((entry, i) => {
+                  const prevDate = i > 0 ? entries[i - 1].entry_date : null;
+                  const showDateHeader = entry.entry_date !== prevDate;
 
-                    return (
-                      <div key={entry.id}>
-                        {showDateHeader && (
-                          <div className="px-4 py-2 bg-[var(--bg-primary)]/50 border-b border-[var(--border)]">
-                            <span className="text-[10px] font-mono text-[var(--text-secondary)] uppercase tracking-wider">
-                              {formatEntryDate(entry.entry_date)}
-                            </span>
-                          </div>
-                        )}
-                        <div className="px-4 py-3 border-b border-[var(--border)] last:border-b-0 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
-                          <div className="flex items-center gap-3 min-w-0">
-                            {/* Type badge */}
-                            <span className={cn(
-                              'flex-shrink-0 text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded',
-                              isWithdrawal
-                                ? 'bg-red-500/15 text-red-400'
-                                : 'bg-green-500/15 text-green-400'
-                            )}>
-                              {isWithdrawal ? 'WD' : 'DP'}
-                            </span>
-                            {/* Account */}
-                            <span className="text-xs font-mono text-slate-500 flex-shrink-0">
-                              #{entry.account_number}
-                            </span>
-                            {/* Note */}
-                            {entry.note && (
-                              <span className="text-xs text-[var(--text-secondary)] truncate">
-                                {entry.note}
+                  return (
+                    <div key={entry.id}>
+                      {showDateHeader && (
+                        <div className="px-4 py-2 bg-white/[0.02] border-b border-[var(--border)]">
+                          <span className="text-[10px] font-mono text-[var(--text-secondary)] uppercase tracking-wider">
+                            {formatEntryDate(entry.entry_date)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="px-4 py-3 border-b border-[var(--border)] last:border-b-0 flex items-center justify-between gap-3 group hover:bg-white/[0.02] transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex-shrink-0 text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-slate-500/10 text-slate-400">
+                            WD
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-[var(--text-body)]">
+                                #{entry.account_number}
                               </span>
+                              {entry.account_name && (
+                                <span className="text-[11px] text-[var(--text-secondary)]">
+                                  {entry.account_name}
+                                </span>
+                              )}
+                            </div>
+                            {entry.note && (
+                              <div className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                                {entry.note}
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            {/* Amount */}
-                            <span className={cn(
-                              'font-mono text-sm font-bold',
-                              isWithdrawal ? 'text-red-400' : 'text-green-400'
-                            )}>
-                              {isWithdrawal ? '-' : '+'}{formatMoney(convert(entry.amount), symbol)}
-                            </span>
-                            {/* Delete */}
-                            <button
-                              onClick={() => handleDelete(entry.id)}
-                              disabled={deleting === entry.id}
-                              className="text-slate-600 hover:text-red-400 transition-colors p-1"
-                              title="Delete"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                            </button>
-                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="font-mono text-sm font-bold text-[var(--text-heading)]">
+                            {formatMoney(convert(entry.amount), symbol)}
+                          </span>
+                          <button
+                            onClick={() => handleDelete(entry.id)}
+                            disabled={deleting === entry.id}
+                            className="text-slate-700 hover:text-red-400 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                            title="Delete"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

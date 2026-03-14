@@ -30,7 +30,7 @@ export default function PortfolioPage() {
     keepPreviousData: true,
   });
 
-  const handleToggleLock = async (accountNumber: number, lock: boolean) => {
+  const handleToggleLock = async (accountNumber: number, lock: boolean | null) => {
     await fetch(`/api/account/${accountNumber}/lock`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -243,6 +243,7 @@ export default function PortfolioPage() {
             totalEquity={t.totalEquity}
             totalFloating={t.totalFloating}
             totalDaily={t.totalDaily}
+            totalDailyClosed={data?.total_daily_closed || 0}
             totalWeekly={t.totalWeekly}
             totalMonthly={t.totalMonthly}
             accountCount={t.count}

@@ -46,7 +46,7 @@ extern string         LockFileName     = "clevredge_locked.txt";
 extern string         _ORD_            = "======= ORDER =======";
 extern double         StartLot         = 0.01;
 extern ENUM_TP_MODE   TP_Mode          = TP_DOLLAR;
-extern double         TP_Dollar        = 3.0;
+extern double         TP_Dollar        = 2.0;
 extern double         TP_Pips          = 10.0;
 extern double         MaxLotLimit      = 1.0;
 
@@ -54,12 +54,12 @@ extern double         MaxLotLimit      = 1.0;
 //| ══════ MARTINGALE ══════                                          |
 //+------------------------------------------------------------------+
 extern string         _MG_             = "======= MARTINGALE =======";
-extern bool           UseMartingale    = true;          // เปิด/ปิด มาร์ติงเกล
-extern double         MG_LossThreshold = 20.0;          // ขาดทุน ($) ก่อนเข้า MG
-extern double         MG_Lot           = 0.02;           // ล็อต MG
+extern bool           UseMartingale    = true;          // Enable/Disable Martingale
+extern double         MG_LossThreshold = 20.0;          // Loss ($) before MG entry
+extern double         MG_Lot           = 0.02;           // MG Lot size
 
 extern bool           UseTrailing      = true;
-extern double         TrailStep        = 2.0;       // Trail step in USD ($)
+extern double         TrailStep        = 1.0;       // Trail step in USD ($)
 extern bool           TrailBreakeven   = false;     // false = lock at TP level immediately
 
 //+------------------------------------------------------------------+
@@ -107,7 +107,7 @@ extern int            NewsSourceGMT    = -5;            // ForexFactory GMT offs
 //| ══════ FRIDAY ══════                                              |
 //+------------------------------------------------------------------+
 extern string         _FRI_            = "======= FRIDAY =======";
-extern ENUM_FRIDAY_MODE FridayMode     = FRI_NO_NEW;
+extern ENUM_FRIDAY_MODE FridayMode     = FRI_CUTOFF;
 extern int            FridayCutoffHour = 23;
 extern int            FridayCutoffMin  = 1;
 
@@ -417,7 +417,7 @@ void RecoverAWState()
       if(OrderMagicNumber() == MagicNumber)
       { ourOrd++; if(OrderType()==OP_BUY) ourBuy++; else ourSell++; }
    }
-   // Recover MG state: ถ้ามีมากกว่า 1 ออเดอร์ฝั่งเดียวกัน = MG เคยเปิดแล้ว
+   // Recover MG state: >1 order on same side = MG already fired
    if(ourBuy > 1 || ourSell > 1) g_mgFired = true;
 
    if(awOrd > 0)
@@ -549,7 +549,7 @@ void ManageTP()
    if(UseTrailing) { ManageTrailingTP(); return; }
 
    double tp = GetTPTarget(); if(tp <= 0) return;
-   // Basket TP: รวม PnL ทุกออเดอร์ (ตัวหลัก + MG) ต้องบวกตาม TP ถึงปิด
+   // Basket TP: sum PnL of all orders (main + MG) must reach TP to close
    double totalPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
    int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
    if(buys + sells > 0 && totalPnL >= tp)
@@ -586,10 +586,10 @@ void ManageTrailingTP()
       return;
    }
 
-   // Basket PnL: รวมทุกออเดอร์ (ตัวหลัก + MG)
+   // Basket PnL: sum all orders (main + MG)
    double basketPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
 
-   // --- เช็คปิดก่อน: ถ้า profit ตกต่ำกว่า lock → ปิดทันที ---
+   // --- Check close first: if profit drops below lock -> close immediately ---
    if(g_trailLock > 0 && basketPnL < g_trailLock)
    {
       Print("TRAIL SAFETY CLOSE basket Lock=$", DoubleToStr(g_trailLock,1),
@@ -638,7 +638,7 @@ double GetTPTarget()
 //+------------------------------------------------------------------+
 //| BASKET SL / AW                                                    |
 //+------------------------------------------------------------------+
-// เช็คว่า AW Recovery EA เริ่มเปิดออเดอร์หรือยัง → หยุดเทรดรอ
+// Check if AW Recovery EA has opened orders -> stop trading and wait
 void CheckAWOrders()
 {
    if(g_isWaitAW) return;

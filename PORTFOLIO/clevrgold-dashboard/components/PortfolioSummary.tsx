@@ -8,6 +8,7 @@ interface PortfolioSummaryProps {
   totalEquity: number;
   totalFloating: number;
   totalDaily: number;
+  totalDailyClosed: number;
   totalWeekly: number;
   totalMonthly: number;
   accountCount: number;
@@ -20,6 +21,7 @@ export default function PortfolioSummary({
   totalEquity,
   totalFloating,
   totalDaily,
+  totalDailyClosed,
   totalWeekly,
   totalMonthly,
   accountCount,
@@ -77,8 +79,10 @@ export default function PortfolioSummary({
               <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-0.5">
                 Daily {hit ? '✓' : ''}
               </div>
-              <div className={cn('font-mono text-sm sm:text-base font-bold truncate', pnlColor(totalDaily))}>
-                {formatPnlShort(convert(totalDaily), symbol)}
+              <div className="font-mono text-sm sm:text-base font-bold truncate">
+                <span className={pnlColor(totalDaily)}>{formatPnlShort(convert(totalDaily), symbol)}</span>
+                <span className="text-[var(--text-secondary)] text-[10px] mx-0.5">/</span>
+                <span className={cn('text-xs', pnlColor(totalDailyClosed))}>{formatPnlShort(convert(totalDailyClosed), symbol)}</span>
               </div>
               <div className="w-full h-1 bg-[var(--bar-track)] rounded-full overflow-hidden mt-1">
                 <div

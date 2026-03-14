@@ -103,6 +103,7 @@ export async function GET() {
     let totalEquity = 0;
     let totalFloating = 0;
     let totalDaily = 0;
+    let totalDailyClosed = 0;
     let totalWeekly = 0;
     let totalMonthly = 0;
     let totalOrders = 0;
@@ -143,7 +144,9 @@ export async function GET() {
       totalBalance += balance;
       totalEquity += equity;
       totalFloating += floating;
+      const dailyClosed = isWeekend ? 0 : (tp?.today || 0);
       totalDaily += daily;
+      totalDailyClosed += dailyClosed;
       totalWeekly += weekly;
       totalMonthly += monthly;
       totalOrders += orders;
@@ -213,6 +216,7 @@ export async function GET() {
       total_equity: totalEquity,
       total_floating: totalFloating,
       total_daily: totalDaily,
+      total_daily_closed: totalDailyClosed,
       total_weekly: totalWeekly,
       total_monthly: totalMonthly,
       total_orders: totalOrders,
