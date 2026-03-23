@@ -14,6 +14,8 @@ interface Entry {
   entry_date: string;
   type: 'withdrawal' | 'deposit';
   amount: number;
+  exchange_rate: number | null;
+  amount_thb: number | null;
   note: string | null;
   created_at: string;
 }
@@ -37,6 +39,7 @@ export default function FinancePage() {
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formAmount, setFormAmount] = useState('');
   const [formNote, setFormNote] = useState('');
+  const [formRate, setFormRate] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const { data, mutate, isLoading } = useSWR(
@@ -99,11 +102,14 @@ export default function FinancePage() {
           type: 'withdrawal',
           amount: parseFloat(formAmount),
           note: formNote || null,
+          exchange_rate: formRate ? parseFloat(formRate) : null,
+          amount_thb: formRate && formAmount ? parseFloat(formAmount) * parseFloat(formRate) : null,
         }),
       });
       if (res.ok) {
         setFormAmount('');
         setFormNote('');
+        setFormRate('');
         setShowForm(false);
         mutate();
       }
@@ -240,15 +246,37 @@ export default function FinancePage() {
               />
             </div>
           </div>
-          <div>
-            <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Note</label>
-            <input
-              type="text"
-              value={formNote}
-              onChange={(e) => setFormNote(e.target.value)}
-              placeholder="e.g. profit week 9"
-              className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-body)]"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Rate (USD/THB)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formRate}
+                onChange={(e) => setFormRate(e.target.value)}
+                placeholder="e.g. 33.50"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-body)] font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Amount (THB)</label>
+              <div className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--text-secondary)]">
+                {formRate && formAmount
+                  ? `฿${(parseFloat(formAmount) * parseFloat(formRate)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Note</label>
+              <input
+                type="text"
+                value={formNote}
+                onChange={(e) => setFormNote(e.target.value)}
+                placeholder="e.g. profit week 9"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-body)]"
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <button
@@ -382,9 +410,17 @@ export default function FinancePage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className="font-mono text-sm font-bold text-[var(--text-heading)]">
-                            {formatMoney(convert(entry.amount), symbol)}
-                          </span>
+                          <div className="text-right">
+                            <div className="font-mono text-sm font-bold text-[var(--text-heading)]">
+                              ${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            {entry.amount_thb && entry.exchange_rate ? (
+                              <div className="text-[10px] font-mono text-[var(--text-secondary)]">
+                                ฿{entry.amount_thb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <span className="text-[var(--text-dim)] ml-1">@{entry.exchange_rate}</span>
+                              </div>
+                            ) : null}
+                          </div>
                           <button
                             onClick={() => handleDelete(entry.id)}
                             disabled={deleting === entry.id}

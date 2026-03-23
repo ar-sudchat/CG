@@ -18,8 +18,16 @@ export async function GET(request: NextRequest) {
     const days = parseInt(searchParams.get('days') || '30');
     const account = searchParams.get('account') || 'all';
 
+    // Cent account lookup
+    const centAccounts = await sql`
+      SELECT account_number FROM accounts WHERE account_type = 'cent' AND is_active = TRUE
+    `;
+    const centSet = new Set(centAccounts.map((r) => String(r.account_number)));
+
     // Historical daily P&L from trades table — grouped by MT4 server date
+    // For cent accounts, divide by 100 in SQL using CASE
     // This aligns with snapshot daily_pnl which resets at MT4 midnight
+    const centAccountNumbers = centAccounts.map((r) => r.account_number);
     let tradesData;
 
     if (account === 'all') {
@@ -27,7 +35,10 @@ export async function GET(request: NextRequest) {
         ? await sql`
           SELECT
             TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
-            ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
+            ROUND(SUM(
+              (t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))
+              / CASE WHEN t.account_number = ANY(${centAccountNumbers.length > 0 ? centAccountNumbers : [0]}) THEN 100.0 ELSE 1.0 END
+            )::numeric, 2) as pnl,
             COUNT(*) as trades,
             COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
           FROM trades t
@@ -40,7 +51,10 @@ export async function GET(request: NextRequest) {
         : await sql`
           SELECT
             TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
-            ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
+            ROUND(SUM(
+              (t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))
+              / CASE WHEN t.account_number = ANY(${centAccountNumbers.length > 0 ? centAccountNumbers : [0]}) THEN 100.0 ELSE 1.0 END
+            )::numeric, 2) as pnl,
             COUNT(*) as trades,
             COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
           FROM trades t
@@ -51,10 +65,11 @@ export async function GET(request: NextRequest) {
         `;
     } else {
       const accountNum = parseInt(account);
+      const isCentSingle = centSet.has(String(accountNum));
       tradesData = await sql`
         SELECT
           TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
-          ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric, 2) as pnl,
+          ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric / ${isCentSingle ? 100.0 : 1.0}, 2) as pnl,
           COUNT(*) as trades,
           COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
         FROM trades t
@@ -67,13 +82,15 @@ export async function GET(request: NextRequest) {
 
     // Get real-time P&L from snapshots (more accurate than trades table)
     // Also fetch updated_at to determine which MT4 date the snapshot belongs to
+    // For cent accounts, divide PnL by 100 in SQL
+    const centArr = centAccountNumbers.length > 0 ? centAccountNumbers : [0];
     let todaySnapshot;
     if (account === 'all') {
       todaySnapshot = auth.accountFilter === null
         ? await sql`
           SELECT
-            ROUND(SUM(COALESCE(s.daily_pnl, 0))::numeric, 2) as pnl,
-            ROUND(SUM(COALESCE(s.floating_pnl, 0))::numeric, 2) as ea_floating,
+            ROUND(SUM(COALESCE(s.daily_pnl, 0) / CASE WHEN a.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as pnl,
+            ROUND(SUM(COALESCE(s.floating_pnl, 0) / CASE WHEN a.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as ea_floating,
             SUM(COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0)) as trades,
             MAX(s.updated_at) as latest_update
           FROM accounts a
@@ -82,8 +99,8 @@ export async function GET(request: NextRequest) {
         `
         : await sql`
           SELECT
-            ROUND(SUM(COALESCE(s.daily_pnl, 0))::numeric, 2) as pnl,
-            ROUND(SUM(COALESCE(s.floating_pnl, 0))::numeric, 2) as ea_floating,
+            ROUND(SUM(COALESCE(s.daily_pnl, 0) / CASE WHEN a.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as pnl,
+            ROUND(SUM(COALESCE(s.floating_pnl, 0) / CASE WHEN a.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as ea_floating,
             SUM(COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0)) as trades,
             MAX(s.updated_at) as latest_update
           FROM accounts a
@@ -93,10 +110,12 @@ export async function GET(request: NextRequest) {
         `;
     } else {
       const accountNum = parseInt(account);
+      const isCentSingle = centSet.has(String(accountNum));
+      const div = isCentSingle ? 100.0 : 1.0;
       todaySnapshot = await sql`
         SELECT
-          ROUND(COALESCE(s.daily_pnl, 0)::numeric, 2) as pnl,
-          ROUND(COALESCE(s.floating_pnl, 0)::numeric, 2) as ea_floating,
+          ROUND((COALESCE(s.daily_pnl, 0) / ${div})::numeric, 2) as pnl,
+          ROUND((COALESCE(s.floating_pnl, 0) / ${div})::numeric, 2) as ea_floating,
           COALESCE(s.open_orders, 0) + COALESCE(s.aw_orders, 0) as trades,
           s.updated_at as latest_update
         FROM accounts a
@@ -106,24 +125,33 @@ export async function GET(request: NextRequest) {
     }
 
     // Get floating P&L from open_positions (includes manual orders)
+    // For cent accounts, divide by 100
     let openPosFloating;
     if (account === 'all') {
       openPosFloating = auth.accountFilter === null
         ? await sql`
-          SELECT ROUND(COALESCE(SUM(op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0)), 0)::numeric, 2) as floating
+          SELECT ROUND(COALESCE(SUM(
+            (op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0))
+            / CASE WHEN op.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END
+          ), 0)::numeric, 2) as floating
           FROM open_positions op
           JOIN accounts a ON op.account_number = a.account_number
           WHERE a.is_active = TRUE
         `
         : await sql`
-          SELECT ROUND(COALESCE(SUM(op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0)), 0)::numeric, 2) as floating
+          SELECT ROUND(COALESCE(SUM(
+            (op.profit + COALESCE(op.commission, 0) + COALESCE(op.swap, 0))
+            / CASE WHEN op.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END
+          ), 0)::numeric, 2) as floating
           FROM open_positions op
           WHERE op.account_number = ANY(${auth.accountFilter})
         `;
     } else {
       const accountNum = parseInt(account);
+      const isCentSingle = centSet.has(String(accountNum));
+      const div = isCentSingle ? 100.0 : 1.0;
       openPosFloating = await sql`
-        SELECT ROUND(COALESCE(SUM(profit + COALESCE(commission, 0) + COALESCE(swap, 0)), 0)::numeric, 2) as floating
+        SELECT ROUND(COALESCE(SUM(profit + COALESCE(commission, 0) + COALESCE(swap, 0)), 0)::numeric / ${div}, 2) as floating
         FROM open_positions
         WHERE account_number = ${accountNum}
       `;

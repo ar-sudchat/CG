@@ -47,6 +47,8 @@ export async function GET(
     }
 
     const r = accountRows[0];
+    const isCent = r.account_type === 'cent';
+    const centDiv = isCent ? 100 : 1;
 
     // Get stats (filtered by date range if provided)
     const statsRows = hasDateFilter
@@ -169,11 +171,11 @@ export async function GET(
     const stats = statsRows[0];
     const today = todayRows[0];
     const tpnl = tradesPnlRows[0];
-    const initialDeposit = Number(r.initial_deposit) || 0;
-    const totalProfit = Number(stats.total_profit) || 0;
+    const initialDeposit = (Number(r.initial_deposit) || 0) / centDiv;
+    const totalProfit = (Number(stats.total_profit) || 0) / centDiv;
     const profitPct = initialDeposit > 0 ? (totalProfit / initialDeposit) * 100 : 0;
-    const grossProfit = Number(stats.gross_profit) || 0;
-    const grossLoss = Number(stats.gross_loss) || 0;
+    const grossProfit = (Number(stats.gross_profit) || 0) / centDiv;
+    const grossLoss = (Number(stats.gross_loss) || 0) / centDiv;
     const profitFactor = grossLoss > 0 ? Math.round((grossProfit / grossLoss) * 100) / 100 : grossProfit > 0 ? 999 : 0;
     const buyCount = Number(stats.buy_count) || 0;
     const sellCount = Number(stats.sell_count) || 0;
@@ -181,22 +183,22 @@ export async function GET(
     const sellWinRate = sellCount > 0 ? Math.round((Number(stats.sell_wins) / sellCount) * 1000) / 10 : 0;
 
     // Drawdown: how much equity has dropped from the "peak" (initial + total profit)
-    const balance = Number(r.balance) || 0;
-    const equity = Number(r.equity) || 0;
-    const snapshotFloating = Number(r.floating_pnl) || 0;
+    const balance = (Number(r.balance) || 0) / centDiv;
+    const equity = (Number(r.equity) || 0) / centDiv;
+    const snapshotFloating = (Number(r.floating_pnl) || 0) / centDiv;
     // Calculate floating from open_positions (includes manual orders)
     const posFloating = openPositions.reduce((sum, p) =>
-      sum + (Number(p.profit) || 0) + (Number(p.swap) || 0) + (Number(p.commission) || 0), 0);
+      sum + (Number(p.profit) || 0) + (Number(p.swap) || 0) + (Number(p.commission) || 0), 0) / centDiv;
     const floating = openPositions.length > 0 ? posFloating : snapshotFloating;
 
     // Supplement daily/weekly with trades data when snapshot is 0 (MT4 server day rollover)
-    const rawSnapshotDaily = Number(r.daily_pnl) || 0;
-    const rawSnapshotWeekly = Number(r.weekly_pnl) || 0;
+    const rawSnapshotDaily = (Number(r.daily_pnl) || 0) / centDiv;
+    const rawSnapshotWeekly = (Number(r.weekly_pnl) || 0) / centDiv;
     const snapshotWeekly = rawSnapshotWeekly - snapshotFloating + floating;
     // Correct snapshot daily by replacing EA-only floating with all floating
     const snapshotDaily = rawSnapshotDaily - snapshotFloating + floating;
-    const tradesDailyPnl = (Number(tpnl?.today_pnl) || 0) + floating;
-    const tradesWeeklyPnl = (Number(tpnl?.week_pnl) || 0) + floating;
+    const tradesDailyPnl = ((Number(tpnl?.today_pnl) || 0) / centDiv) + floating;
+    const tradesWeeklyPnl = ((Number(tpnl?.week_pnl) || 0) / centDiv) + floating;
     const effectiveDaily = Math.abs(tradesDailyPnl) > Math.abs(snapshotDaily) ? tradesDailyPnl : snapshotDaily;
     const effectiveWeekly = Math.abs(tradesWeeklyPnl) > Math.abs(snapshotWeekly) ? tradesWeeklyPnl : snapshotWeekly;
     const growth = balance - initialDeposit;
@@ -226,8 +228,8 @@ export async function GET(
         balance,
         equity,
         floating_pnl: floating,
-        margin: Number(r.margin) || 0,
-        free_margin: Number(r.free_margin) || 0,
+        margin: (Number(r.margin) || 0) / centDiv,
+        free_margin: (Number(r.free_margin) || 0) / centDiv,
         margin_level: Number(r.margin_level) || 0,
         daily_pnl: effectiveDaily,
         weekly_pnl: effectiveWeekly,
@@ -248,10 +250,10 @@ export async function GET(
         losses: Number(stats.losses) || 0,
         breakeven: Number(stats.breakeven) || 0,
         win_rate: Number(stats.win_rate) || 0,
-        avg_profit: Number(stats.avg_profit) || 0,
-        avg_loss: Number(stats.avg_loss) || 0,
-        best_trade: Number(stats.best_trade) || 0,
-        worst_trade: Number(stats.worst_trade) || 0,
+        avg_profit: (Number(stats.avg_profit) || 0) / centDiv,
+        avg_loss: (Number(stats.avg_loss) || 0) / centDiv,
+        best_trade: (Number(stats.best_trade) || 0) / centDiv,
+        worst_trade: (Number(stats.worst_trade) || 0) / centDiv,
         gross_profit: grossProfit,
         gross_loss: grossLoss,
         profit_factor: profitFactor,
@@ -262,14 +264,14 @@ export async function GET(
         sell_count: sellCount,
         buy_win_rate: buyWinRate,
         sell_win_rate: sellWinRate,
-        total_swap: Number(stats.total_swap) || 0,
-        total_commission: Number(stats.total_commission) || 0,
+        total_swap: (Number(stats.total_swap) || 0) / centDiv,
+        total_commission: (Number(stats.total_commission) || 0) / centDiv,
         growth,
         growth_pct: growthPct,
       },
       today: {
         trades: Number(today.today_trades) || 0,
-        pnl: Number(today.today_pnl) || 0,
+        pnl: (Number(today.today_pnl) || 0) / centDiv,
         wins: Number(today.today_wins) || 0,
       },
       open_positions: openPositions.map((p) => ({
@@ -281,9 +283,9 @@ export async function GET(
         current_price: Number(p.current_price),
         sl: Number(p.sl),
         tp: Number(p.tp),
-        commission: Number(p.commission) || 0,
-        swap: Number(p.swap) || 0,
-        profit: Number(p.profit) || 0,
+        commission: (Number(p.commission) || 0) / centDiv,
+        swap: (Number(p.swap) || 0) / centDiv,
+        profit: (Number(p.profit) || 0) / centDiv,
         open_time: p.open_time,
       })),
       recent_trades: recentTrades.map((t) => ({
@@ -292,9 +294,9 @@ export async function GET(
         lots: Number(t.lots),
         open_price: Number(t.open_price),
         close_price: Number(t.close_price),
-        profit: Number(t.profit) || 0,
-        swap: Number(t.swap) || 0,
-        commission: Number(t.commission) || 0,
+        profit: (Number(t.profit) || 0) / centDiv,
+        swap: (Number(t.swap) || 0) / centDiv,
+        commission: (Number(t.commission) || 0) / centDiv,
         open_time: t.open_time,
         close_time: t.close_time,
         magic_number: t.magic_number,

@@ -14,6 +14,7 @@ export async function GET() {
       ? await sql`
         SELECT
           a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
+          COALESCE(a.account_type, 'standard') as account_type,
           COALESCE(a.auto_lock_enabled, true) as auto_lock_enabled,
           COALESCE(a.auto_lock_threshold, 3.0) as auto_lock_threshold,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
@@ -28,6 +29,7 @@ export async function GET() {
       : await sql`
         SELECT
           a.account_number, a.name, a.owner, a.initial_deposit, a.avatar_url, a.avatar_text, a.ea_strategy, a.pair_group, a.manual_lock,
+          COALESCE(a.account_type, 'standard') as account_type,
           COALESCE(a.auto_lock_enabled, true) as auto_lock_enabled,
           COALESCE(a.auto_lock_threshold, 3.0) as auto_lock_threshold,
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
@@ -110,15 +112,18 @@ export async function GET() {
     let awActive = 0;
 
     const accounts = rows.map((r) => {
+      const isCent = r.account_type === 'cent';
+      const centDiv = isCent ? 100 : 1;  // Cent account: divide PnL by 100 to show in USD
       const balance = Number(r.balance) || 0;
       const equity = Number(r.equity) || 0;
       const pos = posMap.get(String(r.account_number));
-      const posFloating = pos?.floating || 0;
-      const snapshotFloating = Number(r.floating_pnl) || 0;
+      const posFloating = (pos?.floating || 0) / centDiv;
+      const snapshotFloating = (Number(r.floating_pnl) || 0) / centDiv;
       // Use open_positions floating when available (includes manual orders), fall back to snapshot
       const floating = pos ? posFloating : snapshotFloating;
-      const rawSnapshotWeekly = Number(r.weekly_pnl) || 0;
-      const snapshotWeekly = rawSnapshotWeekly - snapshotFloating + floating;
+      const rawSnapshotWeekly = (Number(r.weekly_pnl) || 0) / centDiv;
+      const rawSnapshotFloating = (Number(r.floating_pnl) || 0) / centDiv;
+      const snapshotWeekly = rawSnapshotWeekly - rawSnapshotFloating + floating;
       const orders = (pos ? (pos.buy_orders + pos.sell_orders) : 0) || Number(r.open_orders) || 0;
       const aw = Number(r.aw_orders) || 0;
 
@@ -128,23 +133,23 @@ export async function GET() {
       const snapshotMT4Date = r.updated_at
         ? new Date(r.updated_at).toLocaleDateString('sv-SE', { timeZone: MT4_TZ })
         : null;
-      const rawSnapshotDaily = (!isWeekend && snapshotMT4Date === todayMT4) ? (Number(r.daily_pnl) || 0) : 0;
+      const rawSnapshotDaily = (!isWeekend && snapshotMT4Date === todayMT4) ? ((Number(r.daily_pnl) || 0) / centDiv) : 0;
       // Snapshot daily_pnl includes EA-only floating; correct it with all floating
-      const snapshotDaily = rawSnapshotDaily - snapshotFloating + floating;
+      const snapshotDaily = rawSnapshotDaily - rawSnapshotFloating + floating;
 
       const tp = tradesMap.get(String(r.account_number));
-      const tradesDailyPnl = isWeekend ? 0 : (tp?.today || 0) + floating;
-      const tradesWeeklyPnl = (tp?.week || 0) + floating;
-      const tradesMonthlyPnl = (tp?.month || 0) + floating;
+      const tradesDailyPnl = isWeekend ? 0 : ((tp?.today || 0) / centDiv) + floating;
+      const tradesWeeklyPnl = ((tp?.week || 0) / centDiv) + floating;
+      const tradesMonthlyPnl = ((tp?.month || 0) / centDiv) + floating;
 
       const daily = Math.abs(tradesDailyPnl) > Math.abs(snapshotDaily) ? tradesDailyPnl : snapshotDaily;
       const weekly = Math.abs(tradesWeeklyPnl) > Math.abs(snapshotWeekly) ? tradesWeeklyPnl : snapshotWeekly;
       const monthly = tradesMonthlyPnl;
 
-      totalBalance += balance;
-      totalEquity += equity;
+      totalBalance += balance / centDiv;
+      totalEquity += equity / centDiv;
       totalFloating += floating;
-      const dailyClosed = isWeekend ? 0 : (tp?.today || 0);
+      const dailyClosed = isWeekend ? 0 : ((tp?.today || 0) / centDiv);
       totalDaily += daily;
       totalDailyClosed += dailyClosed;
       totalWeekly += weekly;
@@ -160,12 +165,13 @@ export async function GET() {
         avatar_text: r.avatar_text || '',
         ea_strategy: r.ea_strategy || '',
         pair_group: r.pair_group || '',
+        account_type: r.account_type || 'standard',
         manual_lock: r.manual_lock === true ? true : r.manual_lock === false ? false : null,
         auto_lock_enabled: r.auto_lock_enabled !== false,
         auto_lock_threshold: Number(r.auto_lock_threshold) || 3.0,
-        initial_deposit: Number(r.initial_deposit) || 0,
-        balance,
-        equity,
+        initial_deposit: (Number(r.initial_deposit) || 0) / centDiv,
+        balance: balance / centDiv,
+        equity: equity / centDiv,
         floating_pnl: floating,
         daily_pnl: daily,
         weekly_pnl: weekly,
@@ -195,6 +201,70 @@ export async function GET() {
       }
     }
 
+    // ─── Auto-lock evaluation ───────────────────────────────
+    // For accounts with auto_lock_enabled: evaluate pair-aware conditions
+    // Conditions to lock a pair: daily_pnl >= threshold OR aw_orders > 0
+    // Evaluate per pair group, lock/unlock entire pair together
+    const autoAccounts = accounts.filter((a) => a.auto_lock_enabled);
+    if (autoAccounts.length > 0) {
+      const pairGroups = new Map<string, typeof accounts>();
+      const unpaired: typeof accounts = [];
+      for (const a of autoAccounts) {
+        if (a.pair_group) {
+          if (!pairGroups.has(a.pair_group)) pairGroups.set(a.pair_group, []);
+          pairGroups.get(a.pair_group)!.push(a);
+        } else {
+          unpaired.push(a);
+        }
+      }
+
+      const lockUpdates: number[] = [];
+      const unlockUpdates: number[] = [];
+
+      // Evaluate pairs
+      const pairEntries = Array.from(pairGroups.entries());
+      for (const [, pairAccounts] of pairEntries) {
+        const threshold = pairAccounts[0].auto_lock_threshold;
+        const pairNetFloating = pairAccounts.reduce((sum, a) => sum + a.floating_pnl, 0);
+        const hasOrders = pairAccounts.some((a) => a.open_orders > 0 || a.aw_orders > 0);
+        const shouldLock = hasOrders && (
+          pairNetFloating <= -threshold ||             // loss limit (net floating <= -$35)
+          pairAccounts.some((a) => a.aw_orders > 0)   // AW recovery active
+        );
+        for (const a of pairAccounts) {
+          const currentlyLocked = a.manual_lock === true;
+          if (shouldLock && !currentlyLocked) lockUpdates.push(a.account_number);
+          else if (!shouldLock && currentlyLocked) unlockUpdates.push(a.account_number);
+        }
+      }
+
+      // Evaluate unpaired
+      for (const a of unpaired) {
+        const hasOrders = a.open_orders > 0 || a.aw_orders > 0;
+        const shouldLock = hasOrders && (
+          a.floating_pnl <= -a.auto_lock_threshold ||   // loss limit
+          a.aw_orders > 0                                // AW recovery
+        );
+        const currentlyLocked = a.manual_lock === true;
+        if (shouldLock && !currentlyLocked) lockUpdates.push(a.account_number);
+        else if (!shouldLock && currentlyLocked) unlockUpdates.push(a.account_number);
+      }
+
+      // Apply updates (fire-and-forget)
+      if (lockUpdates.length > 0) {
+        void sql`UPDATE accounts SET manual_lock = TRUE WHERE account_number = ANY(${lockUpdates})`;
+        for (const acc of accounts) {
+          if (lockUpdates.includes(acc.account_number)) acc.manual_lock = true;
+        }
+      }
+      if (unlockUpdates.length > 0) {
+        void sql`UPDATE accounts SET manual_lock = FALSE WHERE account_number = ANY(${unlockUpdates})`;
+        for (const acc of accounts) {
+          if (unlockUpdates.includes(acc.account_number)) acc.manual_lock = false;
+        }
+      }
+    }
+
     // Compute lock status for all accounts
     const lockMap = computeAllLockStatuses(accounts);
     const accountsWithLock = accounts.map((a) => {
@@ -210,6 +280,19 @@ export async function GET() {
     // Unique owners list for filter
     const owners = Array.from(new Set(accounts.map((a) => a.owner).filter(Boolean))).sort();
     const lockedCount = accountsWithLock.filter((a) => a.is_locked).length;
+
+    // Fire-and-forget: trigger LINE alert if any stale account has open orders
+    const hasStaleWithOrders = accounts.some(
+      (a) => a.seconds_ago > 180 && (a.open_orders + a.aw_orders) > 0
+    );
+    if (hasStaleWithOrders && process.env.CRON_SECRET) {
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : 'http://localhost:3000';
+      fetch(`${baseUrl}/api/cron/server-alert`, {
+        headers: { 'x-internal-key': process.env.CRON_SECRET },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       total_balance: totalBalance,

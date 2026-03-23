@@ -113,7 +113,8 @@ export default function DailyPnlChart({ account = 'all', accountCount = 1 }: Dai
                 tickFormatter={(v) => `${symbol}${Math.abs(v).toLocaleString()}`}
                 width={65}
                 axisLine={{ stroke: '#1e2a3a' }}
-                domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, target * 1.15)]}
+                domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, target) * 1.2]}
+                tickCount={7}
               />
               <Tooltip
                 cursor={{ fill: 'rgba(255,255,255,0.03)' }}

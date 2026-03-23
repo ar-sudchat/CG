@@ -33,7 +33,7 @@ export default function TradesPage() {
 
   const { data: portfolioData } = useSWR('/api/portfolio', fetcher);
   const { data, isLoading } = useSWR(
-    `/api/trades?account=${account}&days=${days}&limit=200`,
+    `/api/trades?account=${account}&days=${days}&limit=5000`,
     fetcher,
     { refreshInterval: 5000 }
   );
@@ -54,6 +54,24 @@ export default function TradesPage() {
   }
 
   const sortedDates = Object.keys(groupedTrades).sort((a, b) => b.localeCompare(a));
+
+  function exportCSV() {
+    if (!data?.trades?.length) return;
+    const BOM = '\uFEFF';
+    const header = 'Date,Account,Type,Lots,Open Price,Close Price,Profit,Swap,Commission,Source,Ticket\n';
+    const rows = data.trades.map((t: any) => {
+      const src = Number(t.magic_number) === 9751421 ? 'AW' : (Number(t.magic_number) === 9244 ? 'EA' : 'Manual');
+      const ct = t.close_time ? new Date(t.close_time).toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }) : '';
+      return `${ct},${t.account_number},${t.type === 0 ? 'BUY' : 'SELL'},${t.lots},${t.open_price},${t.close_price},${t.profit},${t.swap || 0},${t.commission || 0},${src},${t.ticket}`;
+    }).join('\n');
+    const blob = new Blob([BOM + header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trades_${days}D_${account}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function formatDateLabel(dateStr: string): string {
     try {
@@ -86,6 +104,15 @@ export default function TradesPage() {
             </option>
           ))}
         </select>
+
+        {/* Export */}
+        <button
+          onClick={exportCSV}
+          disabled={!data?.trades?.length}
+          className="px-3 py-1.5 text-xs font-mono rounded-lg bg-[#111827] text-slate-400 border border-[#1e2a3a] hover:text-[#eab308] hover:border-[#eab308]/50 transition-colors disabled:opacity-30"
+        >
+          Export CSV
+        </button>
 
         {/* Period filter */}
         <div className="flex gap-1">

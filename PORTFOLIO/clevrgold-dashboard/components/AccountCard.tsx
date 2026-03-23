@@ -13,6 +13,7 @@ interface Account {
   avatar_text?: string;
   ea_strategy?: string;
   pair_group?: string;
+  account_type?: string;
   balance: number;
   equity: number;
   floating_pnl: number;
@@ -106,6 +107,11 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
                       : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                   )}>
                     {account.ea_strategy.toUpperCase()}
+                  </span>
+                )}
+                {account.account_type === 'cent' && (
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    CENT
                   </span>
                 )}
               </div>

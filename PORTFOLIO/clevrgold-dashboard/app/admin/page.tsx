@@ -111,6 +111,38 @@ export default function AdminPage() {
   };
 
   const [togglingAccount, setTogglingAccount] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newAcc, setNewAcc] = useState({ account_number: '', name: '', owner: '', pair_group: 'XAUUSD' });
+  const [addingAccount, setAddingAccount] = useState(false);
+
+  const handleAddAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAcc.account_number || !newAcc.name) return;
+    setAddingAccount(true);
+    try {
+      const res = await fetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_number: parseInt(newAcc.account_number),
+          name: newAcc.name,
+          owner: newAcc.owner || newAcc.name,
+          pair_group: newAcc.pair_group,
+        }),
+      });
+      if (res.ok) {
+        setNewAcc({ account_number: '', name: '', owner: '', pair_group: 'XAUUSD' });
+        setShowAddForm(false);
+        mutate();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to add account');
+      }
+    } catch {
+      alert('Network error');
+    }
+    setAddingAccount(false);
+  };
 
   const handleToggleActive = async (accountNumber: number, currentActive: boolean) => {
     setTogglingAccount(accountNumber);
@@ -259,9 +291,78 @@ export default function AdminPage() {
       </div>
       {/* Accounts Management */}
       <div className={cardClass}>
-        <h2 className="text-sm font-semibold text-slate-300 mb-3">
-          Accounts ({accounts.length})
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-300">
+            Accounts ({accounts.length})
+          </h2>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              showAddForm
+                ? 'bg-slate-500/20 text-slate-400'
+                : 'bg-[#eab308]/20 text-[#eab308] hover:bg-[#eab308]/30'
+            }`}
+          >
+            {showAddForm ? 'Cancel' : '+ Add Account'}
+          </button>
+        </div>
+
+        {showAddForm && (
+          <form onSubmit={handleAddAccount} className="mb-3 p-3 bg-[#0d1420] rounded-lg border border-[#1e2a3a] space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase block mb-0.5">Account Number</label>
+                <input
+                  type="number"
+                  value={newAcc.account_number}
+                  onChange={(e) => setNewAcc({ ...newAcc, account_number: e.target.value })}
+                  placeholder="1700144037"
+                  className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase block mb-0.5">Name</label>
+                <input
+                  type="text"
+                  value={newAcc.name}
+                  onChange={(e) => setNewAcc({ ...newAcc, name: e.target.value })}
+                  placeholder="Account holder name"
+                  className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase block mb-0.5">Owner</label>
+                <input
+                  type="text"
+                  value={newAcc.owner}
+                  onChange={(e) => setNewAcc({ ...newAcc, owner: e.target.value })}
+                  placeholder="Same as name if empty"
+                  className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase block mb-0.5">Pair Group</label>
+                <input
+                  type="text"
+                  value={newAcc.pair_group}
+                  onChange={(e) => setNewAcc({ ...newAcc, pair_group: e.target.value })}
+                  className="w-full bg-[#1a2332] border border-[#2a3a4a] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={addingAccount}
+                className="px-4 py-1.5 rounded-lg bg-[#eab308] hover:bg-[#ca8a04] text-black text-xs font-semibold disabled:opacity-50"
+              >
+                {addingAccount ? 'Adding...' : 'Add Account'}
+              </button>
+            </div>
+          </form>
+        )}
         <div className="space-y-1.5">
           {accounts.map((acc) => (
             <div key={acc.account_number} className="flex items-center justify-between bg-[#0a0e17] rounded-lg px-3 py-2">

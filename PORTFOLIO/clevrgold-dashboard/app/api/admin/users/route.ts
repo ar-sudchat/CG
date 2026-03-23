@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session || session.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const users = await sql`
       SELECT
         u.id, u.username, u.display_name, u.role, u.is_approved, u.created_at,

@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
     // Build account filter condition
     const af = auth.accountFilter;
 
+    // Cent account lookup for /100 divisor
+    const centAccounts = await sql`
+      SELECT account_number FROM accounts WHERE account_type = 'cent' AND is_active = TRUE
+    `;
+    const centArr = centAccounts.length > 0 ? centAccounts.map((r) => r.account_number) : [0];
+
     const statsRows = hasDateFilter
       ? (af === null
         ? await sql`
@@ -25,13 +31,13 @@ export async function GET(request: NextRequest) {
             COUNT(CASE WHEN profit > 0 THEN 1 END) as wins,
             COUNT(CASE WHEN profit < 0 THEN 1 END) as losses,
             ROUND(COUNT(CASE WHEN profit > 0 THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
-            ROUND(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as total_profit,
-            ROUND(SUM(CASE WHEN profit > 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END)::numeric, 2) as gross_profit,
-            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END))::numeric, 2) as gross_loss,
-            ROUND(AVG(CASE WHEN profit > 0 THEN profit END)::numeric, 2) as avg_profit,
-            ROUND(AVG(CASE WHEN profit < 0 THEN profit END)::numeric, 2) as avg_loss,
-            ROUND(MAX(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as best_trade,
-            ROUND(MIN(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as worst_trade,
+            ROUND(SUM((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as total_profit,
+            ROUND(SUM(CASE WHEN profit > 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END)::numeric, 2) as gross_profit,
+            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END))::numeric, 2) as gross_loss,
+            ROUND(AVG(CASE WHEN profit > 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_profit,
+            ROUND(AVG(CASE WHEN profit < 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_loss,
+            ROUND(MAX((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as best_trade,
+            ROUND(MIN((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as worst_trade,
             ROUND(SUM(lots)::numeric, 2) as total_lots
           FROM trades t
           JOIN accounts a ON t.account_number = a.account_number
@@ -45,13 +51,13 @@ export async function GET(request: NextRequest) {
             COUNT(CASE WHEN profit > 0 THEN 1 END) as wins,
             COUNT(CASE WHEN profit < 0 THEN 1 END) as losses,
             ROUND(COUNT(CASE WHEN profit > 0 THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
-            ROUND(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as total_profit,
-            ROUND(SUM(CASE WHEN profit > 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END)::numeric, 2) as gross_profit,
-            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END))::numeric, 2) as gross_loss,
-            ROUND(AVG(CASE WHEN profit > 0 THEN profit END)::numeric, 2) as avg_profit,
-            ROUND(AVG(CASE WHEN profit < 0 THEN profit END)::numeric, 2) as avg_loss,
-            ROUND(MAX(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as best_trade,
-            ROUND(MIN(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as worst_trade,
+            ROUND(SUM((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as total_profit,
+            ROUND(SUM(CASE WHEN profit > 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END)::numeric, 2) as gross_profit,
+            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END))::numeric, 2) as gross_loss,
+            ROUND(AVG(CASE WHEN profit > 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_profit,
+            ROUND(AVG(CASE WHEN profit < 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_loss,
+            ROUND(MAX((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as best_trade,
+            ROUND(MIN((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as worst_trade,
             ROUND(SUM(lots)::numeric, 2) as total_lots
           FROM trades t
           WHERE t.account_number = ANY(${af})
@@ -65,13 +71,13 @@ export async function GET(request: NextRequest) {
             COUNT(CASE WHEN profit > 0 THEN 1 END) as wins,
             COUNT(CASE WHEN profit < 0 THEN 1 END) as losses,
             ROUND(COUNT(CASE WHEN profit > 0 THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
-            ROUND(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as total_profit,
-            ROUND(SUM(CASE WHEN profit > 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END)::numeric, 2) as gross_profit,
-            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END))::numeric, 2) as gross_loss,
-            ROUND(AVG(CASE WHEN profit > 0 THEN profit END)::numeric, 2) as avg_profit,
-            ROUND(AVG(CASE WHEN profit < 0 THEN profit END)::numeric, 2) as avg_loss,
-            ROUND(MAX(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as best_trade,
-            ROUND(MIN(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as worst_trade,
+            ROUND(SUM((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as total_profit,
+            ROUND(SUM(CASE WHEN profit > 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END)::numeric, 2) as gross_profit,
+            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END))::numeric, 2) as gross_loss,
+            ROUND(AVG(CASE WHEN profit > 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_profit,
+            ROUND(AVG(CASE WHEN profit < 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_loss,
+            ROUND(MAX((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as best_trade,
+            ROUND(MIN((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as worst_trade,
             ROUND(SUM(lots)::numeric, 2) as total_lots
           FROM trades t
           JOIN accounts a ON t.account_number = a.account_number
@@ -83,13 +89,13 @@ export async function GET(request: NextRequest) {
             COUNT(CASE WHEN profit > 0 THEN 1 END) as wins,
             COUNT(CASE WHEN profit < 0 THEN 1 END) as losses,
             ROUND(COUNT(CASE WHEN profit > 0 THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
-            ROUND(SUM(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as total_profit,
-            ROUND(SUM(CASE WHEN profit > 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END)::numeric, 2) as gross_profit,
-            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN profit + COALESCE(swap, 0) + COALESCE(commission, 0) ELSE 0 END))::numeric, 2) as gross_loss,
-            ROUND(AVG(CASE WHEN profit > 0 THEN profit END)::numeric, 2) as avg_profit,
-            ROUND(AVG(CASE WHEN profit < 0 THEN profit END)::numeric, 2) as avg_loss,
-            ROUND(MAX(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as best_trade,
-            ROUND(MIN(profit + COALESCE(swap, 0) + COALESCE(commission, 0))::numeric, 2) as worst_trade,
+            ROUND(SUM((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as total_profit,
+            ROUND(SUM(CASE WHEN profit > 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END)::numeric, 2) as gross_profit,
+            ROUND(ABS(SUM(CASE WHEN profit < 0 THEN (profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END ELSE 0 END))::numeric, 2) as gross_loss,
+            ROUND(AVG(CASE WHEN profit > 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_profit,
+            ROUND(AVG(CASE WHEN profit < 0 THEN profit / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END END)::numeric, 2) as avg_loss,
+            ROUND(MAX((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as best_trade,
+            ROUND(MIN((profit + COALESCE(swap, 0) + COALESCE(commission, 0)) / CASE WHEN t.account_number = ANY(${centArr}) THEN 100.0 ELSE 1.0 END)::numeric, 2) as worst_trade,
             ROUND(SUM(lots)::numeric, 2) as total_lots
           FROM trades t
           WHERE t.account_number = ANY(${af})

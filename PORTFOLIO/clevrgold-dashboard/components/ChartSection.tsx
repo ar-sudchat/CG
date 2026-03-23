@@ -15,6 +15,15 @@ const TradingViewChart = dynamic(() => import('@/components/TradingViewChart'), 
   ),
 });
 
+const GrowthChart = dynamic(() => import('@/components/GrowthChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[300px] sm:h-[400px] flex items-center justify-center text-slate-500 text-sm">
+      Loading chart...
+    </div>
+  ),
+});
+
 const TradingViewNews = dynamic(() => import('@/components/TradingViewNews'), {
   ssr: false,
   loading: () => (
@@ -24,10 +33,21 @@ const TradingViewNews = dynamic(() => import('@/components/TradingViewNews'), {
   ),
 });
 
-type TabKey = 'pnl' | 'calendar' | 'xauusd' | 'news';
+const CapitalSummary = dynamic(() => import('@/components/CapitalSummary'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[300px] flex items-center justify-center text-slate-500 text-sm">
+      Loading...
+    </div>
+  ),
+});
+
+type TabKey = 'pnl' | 'growth' | 'capital' | 'calendar' | 'xauusd' | 'news';
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'pnl', label: 'Daily P&L' },
+  { key: 'growth', label: 'Growth' },
+  { key: 'capital', label: 'Capital' },
   { key: 'calendar', label: 'Calendar' },
   { key: 'xauusd', label: 'TradingView' },
   { key: 'news', label: 'News' },
@@ -67,6 +87,14 @@ export default function ChartSection({ accountCount }: ChartSectionProps) {
       {/* Chart content */}
       {activeTab === 'pnl' && (
         <DailyPnlChart accountCount={accountCount} />
+      )}
+
+      {activeTab === 'growth' && (
+        <GrowthChart />
+      )}
+
+      {activeTab === 'capital' && (
+        <CapitalSummary />
       )}
 
       {activeTab === 'calendar' && (

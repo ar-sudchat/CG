@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                              ClevrEdge.mq4        |
+//|                                              ClevrFilter.mq4        |
 //|                     Every-Bar Scalp | AW Recovery                |
 //+------------------------------------------------------------------+
-#property copyright "ClevrEdge v2.0"
+#property copyright "ClevrFilter v1.3"
 #property link      ""
-#property version   "2.00"
+#property version   "1.30"
 #property strict
 
 //+------------------------------------------------------------------+
@@ -34,24 +34,31 @@ enum ENUM_PNL_SCOPE
 //| ══════ GENERAL ══════                                             |
 //+------------------------------------------------------------------+
 extern string         _G_              = "======= GENERAL =======";
+extern string         AccountLabel     = "A1";
 extern int            MagicNumber      = 9244;
 extern bool           AllowBuy         = true;
-extern bool           AllowSell        = true;
+extern bool           AllowSell        = false;
 extern bool           UsePairLock      = true;
-extern string         LockFileName     = "clevredge_locked.txt";
+extern string         LockFileName     = "clevrfilter_locked.txt";
 
 //+------------------------------------------------------------------+
 //| ══════ ORDER ══════                                               |
 //+------------------------------------------------------------------+
 extern string         _ORD_            = "======= ORDER =======";
-extern double         StartLot         = 0.02;
+extern double         StartLot         = 0.01;
 extern ENUM_TP_MODE   TP_Mode          = TP_DOLLAR;
-extern double         TP_Dollar        = 3.0;
-extern double         TP_Pips          = 10.0;
-extern double         MaxLotLimit      = 1.0;
+extern double         TP_Dollar        = 2.0;
+
+//+------------------------------------------------------------------+
+//| ══════ MARTINGALE ══════                                          |
+//+------------------------------------------------------------------+
+extern string         _MG_             = "======= MARTINGALE =======";
+extern bool           UseMartingale    = true;          // Enable/Disable Martingale
+extern double         MG_LossThreshold = 30.0;          // Loss ($) before MG entry
+extern double         MG_Lot           = 0.02;           // MG Lot size
+
 extern bool           UseTrailing      = true;
-extern double         TrailStep        = 2.0;       // Trail step in USD ($)
-extern bool           TrailBreakeven   = false;     // false = lock at TP level immediately
+extern double         TrailStep        = 1.0;       // Trail step in USD ($)
 
 //+------------------------------------------------------------------+
 //| ══════ NIGHT MODE ══════                                          |
@@ -66,16 +73,17 @@ extern double         NightLot         = 0.01;
 //| ══════ DD / AW ══════                                             |
 //+------------------------------------------------------------------+
 extern string         _DD_             = "======= DD / AW =======";
-extern double         BasketSL_Dollar  = 20.0;
-extern double         MaxDD_Percent    = 100.0;
 extern int            AW_MagicNumber   = 9751421;
-extern double         EmergencyDD      = 50.0;
+extern double         EmergencyDD      = 60.0;
+extern int            CooldownMin      = 1;       // Wait N min after close before new trade (0=off)
+extern double         AW_SimThreshold  = 50.0;    // [BACKTEST] Loss ($) ที่จำลองว่า AW เข้า (ปกติ = ค่าเดียวกับที่ตั้ง AW Recovery EA)
 
 //+------------------------------------------------------------------+
 //| ══════ LOSS CUT ══════                                            |
 //+------------------------------------------------------------------+
 extern string         _LC_             = "======= LOSS CUT =======";
 extern double         LossCutValue     = 1000.0;
+extern double         AW_LossCut       = 500.0;      // AW Loss Cut: close AW + hedge when total loss >= this ($)
 
 //+------------------------------------------------------------------+
 //| ══════ RISK ══════                                                |
@@ -83,7 +91,17 @@ extern double         LossCutValue     = 1000.0;
 extern string         _RISK_           = "======= RISK =======";
 extern double         MaxSpread_Pip    = 10.0;
 extern int            MarketOpenWaitMin = 30;   // Wait X minutes after XAUUSD daily open (server 01:00)
-extern int            MarketCloseHour  = 22;    // Stop new orders from this server hour (0=disabled, 22=block 22:00-close)
+
+//+------------------------------------------------------------------+
+//| ══════ VOLATILITY FILTER ══════                                   |
+//+------------------------------------------------------------------+
+extern string         _VOL_            = "======= VOLATILITY FILTER =======";
+extern bool           UseCandleFilter  = true;   // กรองแท่งเทียนใหญ่
+extern double         MaxCandlePip     = 80.0;   // pip สูงสุดที่ยอมรับ (M1=40, M5=80)
+extern bool           UseATRFilter     = true;   // กรองความผันผวนสูง
+extern double         ATR_Multiplier   = 2.0;    // ATR ปัจจุบัน > X เท่าของปกติ = SKIP
+extern bool           UseConsecFilter  = true;   // กรองแท่งวิ่งทางเดียวต่อเนื่อง
+extern int            MaxConsecBars    = 4;      // แท่งทิศเดียวสูงสุดที่ยอมรับ
 
 //+------------------------------------------------------------------+
 //| ══════ NEWS ══════                                                |
@@ -98,42 +116,44 @@ extern int            NewsSourceGMT    = -5;            // ForexFactory GMT offs
 //| ══════ FRIDAY ══════                                              |
 //+------------------------------------------------------------------+
 extern string         _FRI_            = "======= FRIDAY =======";
-extern ENUM_FRIDAY_MODE FridayMode     = FRI_NO_NEW;
-extern int            FridayCutoffHour = 23;
-extern int            FridayCutoffMin  = 1;
+extern ENUM_FRIDAY_MODE FridayMode     = FRI_CUTOFF;
 
 //+------------------------------------------------------------------+
 //| ══════ MONDAY ══════                                              |
 //+------------------------------------------------------------------+
 extern string         _MON_            = "======= MONDAY =======";
 extern bool           MondayWait       = true;
-extern int            MondayWaitHours  = 1;
 
 //+------------------------------------------------------------------+
 //| ══════ DAY ══════                                                 |
 //+------------------------------------------------------------------+
-extern string         _DAY_            = "======= TRADE DAYS =======";
-extern bool           TradeMonday      = true;
-extern bool           TradeTuesday     = true;
-extern bool           TradeWednesday   = true;
-extern bool           TradeThursday    = true;
-
-//+------------------------------------------------------------------+
-//| ══════ DISPLAY ══════                                             |
-//+------------------------------------------------------------------+
 extern string         _DISP_           = "======= DISPLAY =======";
 extern bool           ShowDashboard    = true;
-extern string         AccountLabel     = "A1";
-extern ENUM_PNL_SCOPE PnL_Scope        = PNL_SYMBOL;
-extern int            ServerToThai     = 4;
 
 //+------------------------------------------------------------------+
 //| INTERNALS                                                         |
 //+------------------------------------------------------------------+
 int      Slippage       = 50;
-string   TradeComment   = "ClevrEdge";
+string   TradeComment   = "ClevrFilter";
 double   g_pipDiv       = 10.0;
 int      g_maxSpreadPts = 100;
+
+// Fixed constants (ไม่ต้องปรับ)
+double   TP_Pips           = 10.0;
+double   MaxLotLimit        = 0.05;
+bool     TrailBreakeven     = false;
+double   MaxDD_Percent      = 100.0;
+int      MarketCloseHour    = 22;
+int      FridayCutoffHour   = 23;
+int      FridayCutoffMin    = 1;
+int      MondayWaitHours    = 1;
+bool     TradeMonday        = true;
+bool     TradeTuesday       = true;
+bool     TradeWednesday     = true;
+bool     TradeThursday      = true;
+int      PnL_Scope          = 1;      // PNL_SYMBOL
+int      ServerToThai       = 4;      // GMT+7
+int      ATR_NormPeriod     = 100;
 
 //+------------------------------------------------------------------+
 //| GLOBALS                                                           |
@@ -145,7 +165,7 @@ double   g_dayPnL        = 0;
 double   g_totalPnL      = 0;
 int      g_scalpTPCount  = 0;
 int      g_scalpTPDay    = 0;
-int      g_basketSLCount = 0;
+// (BasketSL removed — AW Recovery EA triggers itself)
 int      g_awDayCount    = 0;
 int      g_lcCount       = 0;          // LossCut total
 int      g_lcDayCount    = 0;          // LossCut today
@@ -154,8 +174,13 @@ int      g_rcRound       = 0;
 double   g_rcCurrentDD   = 0;
 datetime g_awSimStart    = 0;
 bool     g_emergHedged   = false;
+bool     g_awLossCut     = false;        // AW Loss Cut hedge placed
 double   g_ddPeak        = 0;
 double   g_ddCurrent     = 0;
+// AW Cooldown
+datetime g_awCooldownEnd = 0;        // time when cooldown expires
+// Martingale
+bool     g_mgFired       = false;         // MG order already placed this cycle
 // Trailing
 bool     g_trailActive   = false;
 double   g_trailLock     = 0;
@@ -170,6 +195,32 @@ bool     g_newsBlock     = false;
 string   g_newsStatus    = "";
 
 //+------------------------------------------------------------------+
+//| STATISTICS GLOBALS                                                |
+//+------------------------------------------------------------------+
+// Order counters
+int    g_statNormalTP    = 0;    // Order ปกติ → TP ได้เลย
+int    g_statMGTP        = 0;    // Order MG  → TP หลัง MG
+int    g_statAWClose     = 0;    // Order AW  → จำลองปิดหลัง 2 ชม
+int    g_statSkipCandle  = 0;    // SKIP เพราะ Candle ใหญ่
+int    g_statSkipATR     = 0;    // SKIP เพราะ ATR สูง
+int    g_statSkipConsec  = 0;    // SKIP เพราะแท่งต่อเนื่อง
+int    g_statSkipNews    = 0;    // SKIP เพราะข่าว
+
+// PnL แยกประเภท
+double g_pnlNormalTP     = 0;    // กำไรจาก Normal TP
+double g_pnlMGTP         = 0;    // กำไร/ขาดทุนจาก MG TP
+double g_pnlAWClose      = 0;    // ขาดทุนจาก AW Close
+
+// Track state เพื่อแยกประเภท
+bool   g_cycleHadMG      = false;  // รอบนี้มี MG ไหม
+bool   g_cycleHadAW      = false;  // รอบนี้ AW เข้าไหม
+double g_cycleStartPnL   = 0;      // PnL ตอนเริ่มรอบ
+
+// AW Simulation timer
+datetime g_awSimTimer    = 0;    // เวลาที่ AW เข้า (จำลอง 2 ชม)
+bool     g_awSimActive   = false; // กำลังรอ 2 ชม อยู่ไหม
+
+//+------------------------------------------------------------------+
 //| OnInit                                                            |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -180,12 +231,17 @@ int OnInit()
    g_maxSpreadPts = (int)(MaxSpread_Pip * g_pipDiv);
    g_awDayDate    = Day();
 
-   Print("=== ClevrEdge v2.0 ===");
+   Print("=== ClevrFilter v1.3 ===");
    Print("Mode:", AllowBuy?" BUY":"", AllowSell?" SELL":"",
          " Lot:", StartLot, " Night:", NightLot,
          " TP:", (TP_Mode==TP_DOLLAR ? "$"+DoubleToStr(TP_Dollar,1) : DoubleToStr(TP_Pips,0)+"pip"),
          UseTrailing ? " Trail:$"+DoubleToStr(TrailStep,1) : " Trail:OFF");
+   Print("MG:", UseMartingale?"ON $"+DoubleToStr(MG_LossThreshold,0)+"->"+DoubleToStr(MG_Lot,2):"OFF");
    Print("News:", UseNewsFilter?"ON":"OFF", " Before:", NewsMinsBefore, "m After:", NewsMinsAfter, "m");
+   Print("VolFilter: Candle=", UseCandleFilter?DoubleToStr(MaxCandlePip,0)+"pip":"OFF",
+         " ATR=", UseATRFilter?DoubleToStr(ATR_Multiplier,1)+"x":"OFF",
+         " Consec=", UseConsecFilter?IntegerToString(MaxConsecBars)+"bars":"OFF");
+   Print("AW Sim: Loss>=$", DoubleToStr(AW_SimThreshold,0), " → Close ทันที → Cooldown 2h");
 
    if(UseNewsFilter && !IsTesting()) LoadNews();
    if(!IsTesting()) RecoverAWState();
@@ -194,7 +250,35 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
-   ObjectsDeleteAll(0, "CE_");
+   if(IsTesting())
+   {
+      // ── Backtest จบ: พิมพ์สรุปใน Journal ──
+      // (อย่าลบ Object — ให้หน้าจอแสดงผลต่อไป)
+      int totalTP   = g_statNormalTP + g_statMGTP;
+      int totalSkip = g_statSkipCandle + g_statSkipATR + g_statSkipConsec + g_statSkipNews;
+      double totalPnL = g_pnlNormalTP + g_pnlMGTP + g_pnlAWClose;
+
+      Print("╔══════════════════════════════════╗");
+      Print("║     CLEVRFILTER v1.1 — FINAL STATS  ║");
+      Print("╠══════════════════════════════════╣");
+      Print("║  Normal TP  : ", g_statNormalTP,  " orders   $", DoubleToStr(g_pnlNormalTP,2));
+      Print("║  MG TP      : ", g_statMGTP,      " orders   $", DoubleToStr(g_pnlMGTP,2));
+      Print("║  AW Close   : ", g_statAWClose,   " orders   $", DoubleToStr(g_pnlAWClose,2));
+      Print("║  Total TP   : ", totalTP);
+      Print("╠══════════════════════════════════╣");
+      Print("║  Skip Candle: ", g_statSkipCandle);
+      Print("║  Skip ATR   : ", g_statSkipATR);
+      Print("║  Skip Consec: ", g_statSkipConsec);
+      Print("║  Skip News  : ", g_statSkipNews);
+      Print("║  Total Skip : ", totalSkip);
+      Print("╠══════════════════════════════════╣");
+      Print("║  Net PnL    : $", DoubleToStr(totalPnL,2));
+      Print("╚══════════════════════════════════╝");
+      return;  // ← ไม่ลบ Object ทิ้ง Stats ไว้บนหน้าจอ
+   }
+
+   // Live mode: ลบ Object ตามปกติ
+   ObjectsDeleteAll(0, "CF_");
    Comment("");
 }
 
@@ -378,10 +462,10 @@ bool CheckNewsBlock()
 bool IsPairLocked()
 {
    if(!UsePairLock) return false;
-   // Per-account file: clevredge_locked_260069386.txt  (content "1" = locked)
-   string fname = "clevredge_locked_" + IntegerToString(AccountNumber()) + ".txt";
+   // Per-account file: clevrfilter_locked_260069386.txt  (content "1" = locked)
+   string fname = "clevrfilter_locked_" + IntegerToString(AccountNumber()) + ".txt";
    int fh = FileOpen(fname, FILE_READ|FILE_TXT|FILE_COMMON);
-   if(fh == INVALID_HANDLE) return false;   // no file = not locked
+   if(fh == INVALID_HANDLE) return true;    // no file = LOCKED (fail-safe: sync not ready yet)
 
    string line = FileReadString(fh);
    FileClose(fh);
@@ -394,18 +478,29 @@ bool IsPairLocked()
 //+------------------------------------------------------------------+
 void RecoverAWState()
 {
-   int awOrd = 0, ourOrd = 0;
+   int awOrd = 0, ourOrd = 0, ourBuy = 0, ourSell = 0;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderSymbol() != Symbol() || OrderType() > OP_SELL) continue;
       if(OrderMagicNumber() == AW_MagicNumber) awOrd++;
-      if(OrderMagicNumber() == MagicNumber) ourOrd++;
+      if(OrderMagicNumber() == MagicNumber)
+      { ourOrd++; if(OrderType()==OP_BUY) ourBuy++; else ourSell++; }
    }
+   // Recover MG state: >1 order on same side = MG already fired
+   if(ourBuy > 1 || ourSell > 1) g_mgFired = true;
+
    if(awOrd > 0)
-   { g_isWaitAW = true; g_awSimStart = TimeCurrent(); g_rcRound++; }
-   else if(ourOrd > 0 && CalcPnL(OP_BUY) + CalcPnL(OP_SELL) <= -BasketSL_Dollar)
-   { g_isWaitAW = true; g_awSimStart = TimeCurrent(); g_rcRound++; }
+   {
+      g_isWaitAW = true; g_awSimStart = TimeCurrent(); g_rcRound++;
+      // Recover AW Loss Cut state: check if hedge comment exists
+      for(int j = OrdersTotal()-1; j >= 0; j--)
+      {
+         if(!OrderSelect(j, SELECT_BY_POS, MODE_TRADES)) continue;
+         if(OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
+         if(StringFind(OrderComment(), "AW_CUT") >= 0) { g_awLossCut = true; break; }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -417,10 +512,53 @@ void OnTick()
    TrackDD();
    if(Day() != g_awDayDate) { g_awDayCount = 0; g_scalpTPDay = 0; g_lcDayCount = 0; g_awDayDate = Day(); }
 
+   // ── BACKTEST: จำลอง AW ──
+   // ตรวจ Loss ถึง Threshold → เริ่มนับ 2 ชม → Close
+   if(IsTesting())
+   {
+      if(HandleAWSim()) return;
+   }
+
    if(g_isWaitAW) { HandleWaitAW(); return; }
 
    ManageTP();
-   CheckBasketSL();
+   CheckMartingale();
+
+   // ── BACKTEST: เช็ค AW Threshold แทน CntAW() ──
+   if(IsTesting())
+   {
+      double curPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+      if(!g_awSimActive && (CntOrd(OP_BUY)+CntOrd(OP_SELL)) > 0
+         && curPnL <= -AW_SimThreshold)
+      {
+         // ── Close ทันที ── บันทึก PnL ที่ตอน Close
+         double closePnL = curPnL;
+         g_pnlAWClose  += 0;   // สมมติ AW แก้ได้ = Breakeven $0
+         g_statAWClose++;
+         g_awDayCount++;
+         g_cycleHadAW  = true;
+         CloseAllMine();
+
+         // ── เริ่มนับ Cooldown 2 ชม ──
+         g_awSimActive = true;
+         g_awSimTimer  = TimeCurrent();
+         g_mgFired     = false;
+
+         g_lastAction = "AW CLOSE #" + IntegerToString(g_statAWClose)
+                        + " real=$" + DoubleToStr(closePnL,2)
+                        + " stat=$0 → COOLDOWN 2h";
+         Print(">>> AW SIM: CLOSED at $", DoubleToStr(closePnL,2),
+               " | Stat=$0 (AW recovered) (#", g_statAWClose, ") → Cooldown 2h");
+         DrawMini("AW WAIT");
+         DrawStats();
+         return;
+      }
+   }
+   else
+   {
+      CheckAWOrders();
+   }
+
    if(g_isWaitAW) { DrawMini("WAIT AW"); return; }
    if(CheckMaxDD()) { DrawMini("DD LIMIT!"); return; }
    if(CheckLossCut()) { DrawMini("LOSS CUT!"); return; }
@@ -444,6 +582,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 string GetStatus()
 {
+   if(g_awCooldownEnd > 0 && TimeCurrent() < g_awCooldownEnd) return "COOLDOWN";
    if(g_newsBlock) return "NEWS";
    if(IsMarketOpenWait() && CntOrd(OP_BUY)+CntOrd(OP_SELL) == 0) return "OPEN WAIT";
    if(IsMarketCloseBlock() && CntOrd(OP_BUY)+CntOrd(OP_SELL) == 0) return "CLOSE WAIT";
@@ -454,12 +593,119 @@ string GetStatus()
 }
 
 //+------------------------------------------------------------------+
+//| VOLATILITY FILTER — 3 ชั้น                                       |
+//| ชั้น 1: Candle Body ใหญ่เกินไป                                    |
+//| ชั้น 2: ATR สูงผิดปกติ                                            |
+//| ชั้น 3: แท่งวิ่งทิศเดียวต่อเนื่อง                                  |
+//+------------------------------------------------------------------+
+bool IsVolatilityBlock()
+{
+   // ── ชั้น 1: Candle Body Filter ──
+   if(UseCandleFilter)
+   {
+      double body = MathAbs(Close[1] - Open[1]) / Point / g_pipDiv;
+      if(body > MaxCandlePip)
+      {
+         g_statSkipCandle++;
+         g_lastAction = "BIG CANDLE " + DoubleToStr(body,0) + "p > " + DoubleToStr(MaxCandlePip,0) + "p SKIP";
+         return true;
+      }
+   }
+
+   // ── ชั้น 2: ATR Filter ──
+   if(UseATRFilter)
+   {
+      double atrNow = iATR(NULL, PERIOD_M1, 14, 1);
+      double atrAvg = iATR(NULL, PERIOD_M1, ATR_NormPeriod, 1);
+      if(atrAvg > 0 && atrNow > atrAvg * ATR_Multiplier)
+      {
+         g_statSkipATR++;
+         g_lastAction = "HIGH VOL ATR=" + DoubleToStr(atrNow/Point/g_pipDiv,1)
+                        + "p (" + DoubleToStr(atrNow/atrAvg,1) + "x) SKIP";
+         return true;
+      }
+   }
+
+   // ── ชั้น 3: Consecutive Bars Filter ──
+   if(UseConsecFilter)
+   {
+      int score = 0;
+      for(int i = 1; i <= 5; i++)
+      {
+         if(Close[i] > Open[i]) score++;
+         else if(Close[i] < Open[i]) score--;
+      }
+      if(MathAbs(score) >= MaxConsecBars)
+      {
+         g_statSkipConsec++;
+         string dir = (score > 0) ? "UP" : "DN";
+         g_lastAction = "CONSEC " + dir + " " + IntegerToString(MathAbs(score)) + " bars SKIP";
+         return true;
+      }
+   }
+
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| STATISTICS DASHBOARD                                              |
+//+------------------------------------------------------------------+
+void DrawStats()
+{
+   if(!IsTesting()) return;   // แสดงเฉพาะตอน Backtest
+
+   int totalTP  = g_statNormalTP + g_statMGTP;
+   int totalSkip = g_statSkipCandle + g_statSkipATR + g_statSkipConsec + g_statSkipNews;
+   double totalPnL = g_pnlNormalTP + g_pnlMGTP + g_pnlAWClose;
+
+   // แสดงผลใน Journal/Log
+   Print("========== CLEVRFILTER STATS ==========");
+   Print("Normal TP  : ", g_statNormalTP,  " orders  $", DoubleToStr(g_pnlNormalTP,2));
+   Print("MG TP      : ", g_statMGTP,      " orders  $", DoubleToStr(g_pnlMGTP,2));
+   Print("AW Close   : ", g_statAWClose,   " orders  $", DoubleToStr(g_pnlAWClose,2));
+   Print("Total TP   : ", totalTP, " | AW: ", g_statAWClose);
+   Print("Skip Candle: ", g_statSkipCandle);
+   Print("Skip ATR   : ", g_statSkipATR);
+   Print("Skip Consec: ", g_statSkipConsec);
+   Print("Skip News  : ", g_statSkipNews);
+   Print("Total Skip : ", totalSkip);
+   Print("Net PnL    : $", DoubleToStr(totalPnL,2));
+   Print("=====================================");
+
+   // แสดงบนชาร์ต
+   int px = 285, py = 18, pw = 280, LH = 16;
+   int cx = px + 8;
+   int lines = 10;
+   MiniBox("ST_bg", px, py, pw, LH * lines + 16);
+   int y = py + 6;
+
+   MiniLab("st0", cx, y, "=== BACKTEST STATS ===",          C'100,200,255', 8); y += LH;
+   MiniLab("st1", cx, y, "Normal TP : " + IntegerToString(g_statNormalTP)
+           + "  $" + DoubleToStr(g_pnlNormalTP,2),          C'100,230,100', 8); y += LH;
+   MiniLab("st2", cx, y, "MG TP     : " + IntegerToString(g_statMGTP)
+           + "  $" + DoubleToStr(g_pnlMGTP,2),              C'255,220,80',  8); y += LH;
+   MiniLab("st3", cx, y, "AW Close  : " + IntegerToString(g_statAWClose)
+           + "  $0 (recovered)",                             C'255,180,50',  8); y += LH;
+
+   color netClr = (totalPnL >= 0) ? C'100,230,100' : C'255,80,80';
+   MiniLab("st4", cx, y, "Net PnL   : $" + DoubleToStr(totalPnL,2), netClr, 8); y += LH;
+
+   MiniLab("st5", cx, y, "------- FILTER -------",          C'80,80,100',   7); y += LH;
+   MiniLab("st6", cx, y, "Skip Candle: " + IntegerToString(g_statSkipCandle),  C'150,150,180', 7); y += LH;
+   MiniLab("st7", cx, y, "Skip ATR   : " + IntegerToString(g_statSkipATR),     C'150,150,180', 7); y += LH;
+   MiniLab("st8", cx, y, "Skip Consec: " + IntegerToString(g_statSkipConsec),  C'150,150,180', 7); y += LH;
+   MiniLab("st9", cx, y, "Total Skip : " + IntegerToString(totalSkip),         C'200,200,100', 7); y += LH;
+
+   ChartRedraw(0);
+}
+
+//+------------------------------------------------------------------+
 //| TRADE — 1 order per bar, side from AllowBuy/AllowSell          |
 //+------------------------------------------------------------------+
 void DoTrade()
 {
    if(g_isWaitAW) return;
-   if(g_newsBlock) { g_lastAction = "NEWS: " + g_newsStatus; return; }
+   if(g_newsBlock) { g_statSkipNews++; g_lastAction = "NEWS: " + g_newsStatus; return; }
 
    int total = CntOrd(OP_BUY) + CntOrd(OP_SELL);
    if(total > 0)
@@ -468,13 +714,24 @@ void DoTrade()
       return;
    }
 
-   // total == 0 → about to open new order
+   // total == 0 → cooldown: wait N min + new bar
+   if(g_awCooldownEnd > 0)
+   {
+      if(TimeCurrent() < g_awCooldownEnd)
+      { int sec = (int)(g_awCooldownEnd - TimeCurrent()); g_lastAction = "COOL " + IntegerToString(sec/60) + ":" + StringFormat("%02d", sec%60); return; }
+      // Cooldown time passed → reset and require new bar
+      g_awCooldownEnd = 0; g_lastBar = Time[0];
+      g_lastAction = "COOL OK, wait bar"; return;
+   }
    if(IsPairLocked()) { g_lastAction = "PAIR LOCKED"; return; }
    if(IsMarketOpenWait()) { g_lastAction = "OPEN WAIT " + IntegerToString(MarketOpenWaitMin) + "m"; return; }
    if(IsMarketCloseBlock()) { g_lastAction = "CLOSE WAIT " + IntegerToString(MarketCloseHour) + ":00"; return; }
    if(IsFridayBlock()) { g_lastAction = "FRI STOP"; return; }
    if(MondayWait && DayOfWeek()==1 && Hour()<MondayWaitHours) { g_lastAction = "MON WAIT"; return; }
    if(!IsTradingDay()) { g_lastAction = "DAY OFF"; return; }
+
+   // ── VOLATILITY FILTER (3 ชั้น) ──
+   if(IsVolatilityBlock()) return;
 
    double lot = GetBaseLot();
    string nf = IsNightMode() ? " [N]" : "";
@@ -483,6 +740,36 @@ void DoTrade()
    else if(AllowSell)
    { OpenOrder(OP_SELL, lot); g_lastAction = "NEW SELL" + nf; }
    else g_lastAction = "SKIP (no side)";
+}
+
+//+------------------------------------------------------------------+
+//| MARTINGALE — add 1 MG order when loss >= threshold               |
+//+------------------------------------------------------------------+
+void CheckMartingale()
+{
+   if(!UseMartingale || g_mgFired || g_isWaitAW) return;
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   if(buys + sells == 0) return;   // no open orders
+
+   double pnl = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+   if(pnl >= -MG_LossThreshold) return;   // loss not yet reached threshold
+
+   // Determine side: add to the losing side
+   double lot = NormLot(MG_Lot);
+   if(buys > 0 && sells == 0)
+   {
+      OpenOrder(OP_BUY, lot);
+      g_mgFired     = true;
+      g_cycleHadMG  = true;
+      g_lastAction  = "MG BUY " + DoubleToStr(lot,2);
+   }
+   else if(sells > 0 && buys == 0)
+   {
+      OpenOrder(OP_SELL, lot);
+      g_mgFired     = true;
+      g_cycleHadMG  = true;
+      g_lastAction  = "MG SELL " + DoubleToStr(lot,2);
+   }
 }
 
 void OpenOrder(int type, double lot)
@@ -503,12 +790,25 @@ void ManageTP()
    if(UseTrailing) { ManageTrailingTP(); return; }
 
    double tp = GetTPTarget(); if(tp <= 0) return;
-   double bpnl = CalcPnL(OP_BUY);
-   if(CntOrd(OP_BUY) > 0 && bpnl >= tp)
-   { CloseAll(OP_BUY); g_scalpTPCount++; g_scalpTPDay++; g_lastAction = "BUY TP! $" + DoubleToStr(bpnl,2); }
-   double spnl = CalcPnL(OP_SELL);
-   if(CntOrd(OP_SELL) > 0 && spnl >= tp)
-   { CloseAll(OP_SELL); g_scalpTPCount++; g_scalpTPDay++; g_lastAction = "SELL TP! $" + DoubleToStr(spnl,2); }
+   // Basket TP: sum PnL of all orders (main + MG) must reach TP to close
+   double totalPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   if(buys + sells > 0 && totalPnL >= tp)
+   {
+      if(buys > 0) CloseAll(OP_BUY);
+      if(sells > 0) CloseAll(OP_SELL);
+      // บันทึกสถิติ
+      if(g_cycleHadMG)
+      { g_statMGTP++; g_pnlMGTP += totalPnL; }
+      else
+      { g_statNormalTP++; g_pnlNormalTP += totalPnL; }
+      g_cycleHadMG = false;
+      g_cycleHadAW = false;
+      g_scalpTPCount++; g_scalpTPDay++;
+      g_lastAction = "BASKET TP! $" + DoubleToStr(totalPnL,2);
+      DrawStats();
+      SetCooldown();
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -518,97 +818,68 @@ void ManageTP()
 void ManageTrailingTP()
 {
    double tp = GetTPTarget(); if(tp <= 0) return;
-   double tv = MarketInfo(Symbol(), MODE_TICKVALUE);
-   double ts = MarketInfo(Symbol(), MODE_TICKSIZE);
-   if(tv <= 0 || ts <= 0) return;
+   int buys = CntOrd(OP_BUY), sells = CntOrd(OP_SELL);
+   int totalOrders = buys + sells;
 
-   int totalOrders = 0;
-
-   for(int i = OrdersTotal()-1; i >= 0; i--)
-   {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
-      if(OrderType() > OP_SELL) continue;
-
-      totalOrders++;
-      double profit = OrderProfit() + OrderSwap() + OrderCommission();
-
-      // --- Profit >= TP: update lock & set SL ---
-      if(profit >= tp)
-      {
-         g_trailActive = true;
-
-         int steps = (int)MathFloor((profit - tp) / TrailStep);
-         double newLock;
-         if(TrailBreakeven)
-         {
-            if(steps == 0)
-               newLock = 0;
-            else
-               newLock = tp + (steps - 1) * TrailStep;
-         }
-         else
-         {
-            newLock = tp + steps * TrailStep;
-         }
-         if(newLock > g_trailLock) g_trailLock = newLock;
-
-         // Convert lock $ to SL price
-         double offset = g_trailLock * ts / (OrderLots() * tv);
-         double newSL;
-
-         if(OrderType() == OP_BUY)
-         {
-            newSL = NormalizeDouble(OrderOpenPrice() + offset, Digits);
-            if(OrderStopLoss() < Point || newSL > OrderStopLoss() + Point)
-            {
-               if(!OrderModify(OrderTicket(), OrderOpenPrice(), newSL, 0, 0, clrLime))
-                  Print("Trail BUY SL err:", GetLastError(), " SL=", newSL);
-            }
-         }
-         else
-         {
-            newSL = NormalizeDouble(OrderOpenPrice() - offset, Digits);
-            if(OrderStopLoss() < Point || newSL < OrderStopLoss() - Point)
-            {
-               if(!OrderModify(OrderTicket(), OrderOpenPrice(), newSL, 0, 0, clrOrangeRed))
-                  Print("Trail SELL SL err:", GetLastError(), " SL=", newSL);
-            }
-         }
-         g_lastAction = "TRAIL Lock:$" + DoubleToStr(g_trailLock,1) + " Now:$" + DoubleToStr(profit,1);
-      }
-      // --- Safety: profit dropped below lock → close at market ---
-      else if(g_trailLock > 0 && profit < g_trailLock)
-      {
-         Print("TRAIL SAFETY CLOSE #", OrderTicket(),
-               " Lock=$", DoubleToStr(g_trailLock,1),
-               " Profit=$", DoubleToStr(profit,2));
-         bool closed = false;
-         if(OrderType() == OP_BUY)
-            closed = OrderClose(OrderTicket(), OrderLots(), MarketInfo(Symbol(), MODE_BID), 3, clrLime);
-         else
-            closed = OrderClose(OrderTicket(), OrderLots(), MarketInfo(Symbol(), MODE_ASK), 3, clrOrangeRed);
-
-         if(closed)
-         {
-            g_scalpTPCount++; g_scalpTPDay++;
-            g_lastAction = "SAFE TP $" + DoubleToStr(profit,1);
-         }
-         else
-            Print("Trail safety close err:", GetLastError());
-      }
-   }
-
-   // Reset only when no orders remain
+   // Reset when no orders
    if(totalOrders == 0)
    {
       if(g_trailActive)
       {
+         // บันทึกสถิติ
+         if(g_cycleHadMG)
+         { g_statMGTP++; g_pnlMGTP += g_trailLock; }
+         else
+         { g_statNormalTP++; g_pnlNormalTP += g_trailLock; }
+         g_cycleHadMG = false;
+         g_cycleHadAW = false;
          g_scalpTPCount++; g_scalpTPDay++;
          g_lastAction = "TRAIL TP! $" + DoubleToStr(g_trailLock, 1);
+         DrawStats();
+         SetCooldown();
       }
       g_trailActive = false;
       g_trailLock = 0;
+      return;
+   }
+
+   // Basket PnL: sum all orders (main + MG)
+   double basketPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
+
+   // --- Check close first: if profit drops below lock -> close immediately ---
+   if(g_trailLock > 0 && basketPnL < g_trailLock)
+   {
+      Print("TRAIL SAFETY CLOSE basket Lock=$", DoubleToStr(g_trailLock,1),
+            " PnL=$", DoubleToStr(basketPnL,2));
+      if(buys > 0) CloseAll(OP_BUY);
+      if(sells > 0) CloseAll(OP_SELL);
+      // ── นับสถิติ ──
+      if(g_cycleHadMG)
+      { g_statMGTP++; g_pnlMGTP += basketPnL; }
+      else
+      { g_statNormalTP++; g_pnlNormalTP += basketPnL; }
+      g_cycleHadMG  = false;
+      g_cycleHadAW  = false;
+      g_scalpTPCount++; g_scalpTPDay++;
+      g_lastAction = "SAFE TP $" + DoubleToStr(basketPnL,1);
+      DrawStats();
+      SetCooldown();
+      g_trailActive = false; g_trailLock = 0;
+      return;
+   }
+
+   // --- Basket profit >= TP: update lock ---
+   if(basketPnL >= tp)
+   {
+      g_trailActive = true;
+      int steps = (int)MathFloor((basketPnL - tp) / TrailStep);
+      double newLock;
+      if(TrailBreakeven)
+         newLock = (steps == 0) ? 0 : tp + (steps - 1) * TrailStep;
+      else
+         newLock = tp + steps * TrailStep;
+      if(newLock > g_trailLock) g_trailLock = newLock;
+      g_lastAction = "TRAIL Lock:$" + DoubleToStr(g_trailLock,1) + " Now:$" + DoubleToStr(basketPnL,1);
    }
 }
 
@@ -630,39 +901,133 @@ double GetTPTarget()
 }
 
 //+------------------------------------------------------------------+
-//| BASKET SL / AW                                                    |
+//| AW SIMULATION — Backtest Only                                     |
+//| Logic ที่ถูก:                                                     |
+//| Loss ถึง AW_SimThreshold → Close ทันที → รอ 2 ชม Cooldown        |
 //+------------------------------------------------------------------+
-void CheckBasketSL()
+bool HandleAWSim()
 {
-   if(CntOrd(OP_BUY) + CntOrd(OP_SELL) == 0) return;
-   g_totalPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
-   if(g_totalPnL <= -BasketSL_Dollar)
+   if(!g_awSimActive) return false;
+
+   // ── กำลังรอ Cooldown 2 ชม หลัง Close แล้ว ──
+   if(g_awSimTimer > 0)
    {
-      g_basketSLCount++; g_awDayCount++;
-      g_isWaitAW = true; g_rcRound++; g_rcCurrentDD = 0;
-      g_awSimStart = TimeCurrent();
-      g_lastAction = "DD HIT! -> Wait AW";
-      Print(">>> BASKET SL #", g_basketSLCount, " $", DoubleToStr(g_totalPnL, 2));
+      int elapsed = (int)(TimeCurrent() - g_awSimTimer);
+      int waitSec = 7200;  // 2 ชั่วโมง
+
+      if(elapsed >= waitSec)
+      {
+         // ครบ 2 ชม → เปิดใหม่ได้
+         g_awSimActive = false;
+         g_awSimTimer  = 0;
+         g_cycleHadAW  = false;
+         g_cycleHadMG  = false;
+         g_mgFired     = false;
+         g_lastBar     = Time[0];  // รอ New Bar ถัดไป
+         g_lastAction  = "AW COOLDOWN DONE → Ready";
+         Print(">>> AW COOLDOWN DONE #", g_statAWClose, " Ready to trade");
+         DrawMini("ACTIVE");
+         DrawStats();
+         return false;  // ปล่อยให้ OnTick ทำงานต่อได้
+      }
+
+      // ยังรออยู่ — แสดง Countdown
+      int rem  = waitSec - elapsed;
+      int remH = rem / 3600;
+      int remM = (rem % 3600) / 60;
+      int remS = rem % 60;
+      g_lastAction = "AW COOLDOWN " + IntegerToString(remH) + "h"
+                     + StringFormat("%02d",remM) + "m"
+                     + StringFormat("%02d",remS) + "s";
+      DrawMini("AW WAIT");
+      return true;  // บล็อค OnTick
+   }
+
+   return false;
+}
+
+//+------------------------------------------------------------------+
+// Check if AW Recovery EA has opened orders -> stop trading and wait
+void CheckAWOrders()
+{
+   if(g_isWaitAW) return;
+   if(CntAW() > 0)
+   {
+      g_awDayCount++;
+      g_isWaitAW    = true;
+      g_rcRound++;
+      g_rcCurrentDD = 0;
+      g_awSimStart  = TimeCurrent();
+      g_awSimTimer  = TimeCurrent();   // เริ่มนับ 2 ชม
+      g_cycleHadAW  = true;
+      g_mgFired     = false;
+      g_lastAction  = "AW DETECTED -> Wait 2h";
+      Print(">>> AW DETECTED, switching to wait mode (2h sim)");
    }
 }
 
 void HandleWaitAW()
 {
+   // Backtest: ใช้ HandleAWSim() แทนแล้ว
+   if(IsTesting()) { g_isWaitAW = false; return; }
+
    double awNet = AllPnL();
    double awDD = -awNet; if(awDD > g_rcCurrentDD) g_rcCurrentDD = awDD;
 
-   if(IsTesting())
-   {
-      if((int)(TimeCurrent() - g_awSimStart) >= 1200)
-      { CloseAllMine(); g_isWaitAW = false; g_lastAction = "AW SIM OK #" + IntegerToString(g_rcRound); DrawMini("ACTIVE"); return; }
-      int sec = 1200 - (int)(TimeCurrent() - g_awSimStart);
-      g_lastAction = "AW SIM " + IntegerToString(sec/60) + ":" + StringFormat("%02d", sec%60);
-      DrawMini("AW SIM"); return;
-   }
-
    int ours = CntOrd(OP_BUY) + CntOrd(OP_SELL);
    int aws  = CntAW();
-   // Emergency Hedge
+
+   // ── AW Loss Cut: close AW orders + hedge our orders ──
+   // Step 1: Close all AW orders (stop AW from opening more)
+   // Step 2: Hedge our EA orders (freeze loss)
+   // AW EA sees no orders of its own → goes idle
+   if(!g_awLossCut && AW_LossCut > 0 && aws > 0)
+   {
+      double totalLoss = AllPnL();   // EA + AW combined
+      if(totalLoss <= -AW_LossCut)
+      {
+         Print(">>> AW LOSS CUT TRIGGERED! Total=$", DoubleToStr(totalLoss,1));
+
+         // Step 1: Close the AW Recovery chart (stops AW EA, keeps orders)
+         long cid = ChartFirst();
+         while(cid >= 0)
+         {
+            if(cid != ChartID() && ChartSymbol(cid) == Symbol())
+            {
+               Print(">>> Closing AW chart: ", cid);
+               ChartClose(cid);
+            }
+            cid = ChartNext(cid);
+         }
+         Sleep(300);
+
+         // Step 2: Hedge net exposure of ALL orders (EA + AW) — don't close anything
+         double netBuyLots = 0, netSellLots = 0;
+         for(int i = OrdersTotal()-1; i >= 0; i--)
+         {
+            if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+            if(OrderSymbol() != Symbol()) continue;
+            if(OrderType() == OP_BUY)  netBuyLots  += OrderLots();
+            if(OrderType() == OP_SELL) netSellLots += OrderLots();
+         }
+         double netExposure = netBuyLots - netSellLots;
+         if(MathAbs(netExposure) >= MarketInfo(Symbol(), MODE_MINLOT))
+         {
+            int hedgeDir = (netExposure > 0) ? OP_SELL : OP_BUY;
+            double hLot = NormLot(MathAbs(netExposure));
+            double price = (hedgeDir == OP_BUY) ? Ask : Bid;
+            int t = OrderSend(Symbol(), hedgeDir, hLot, price, Slippage, 0, 0,
+                              "CF AW_CUT $" + DoubleToStr(MathAbs(totalLoss),0), MagicNumber, 0, clrRed);
+            if(t > 0)
+               Print(">>> HEDGE OK: ", (hedgeDir==OP_BUY?"BUY":"SELL"), " ", DoubleToStr(hLot,2));
+         }
+
+         g_awLossCut = true;
+         Print(">>> AW LOSS CUT DONE. Waiting for user.");
+      }
+   }
+
+   // Emergency Hedge (original: when our orders lose too much after AW done)
    if(!g_emergHedged && EmergencyDD > 0)
    {
       double ourPnL = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
@@ -675,23 +1040,31 @@ void HandleWaitAW()
          if(hLot > 0)
          {
             double price = (hedgeDir == OP_BUY) ? Ask : Bid;
-            int t = OrderSend(Symbol(), hedgeDir, hLot, price, Slippage, 0, 0, "CE EMERG", MagicNumber, 0, clrRed);
+            int t = OrderSend(Symbol(), hedgeDir, hLot, price, Slippage, 0, 0, "CF EMERG", MagicNumber, 0, clrRed);
             if(t > 0) { g_emergHedged = true; Print(">>> EMERGENCY HEDGE!"); }
          }
       }
    }
 
+   // If AW Loss Cut hedged, show clear status and wait for user
+   if(g_awLossCut)
+   {
+      g_lastAction = "AW CUT! AW:" + IntegerToString(aws) + " $" + DoubleToStr(awNet,1) + " [HEDGED]";
+      DrawMini("AW CUT");
+      return;   // Wait for user to manually resolve
+   }
+
    if(aws == 0 && ours == 0)
-   { g_isWaitAW = false; g_emergHedged = false; g_lastAction = "AW DONE!"; DrawMini("ACTIVE"); return; }
+   { g_isWaitAW = false; g_emergHedged = false; g_awLossCut = false; SetCooldown(); g_lastAction = "AW DONE! Cool:" + IntegerToString(CooldownMin) + "m"; DrawMini("COOLDOWN"); return; }
 
    if(aws == 0 && ours > 0)
    {
       double rem = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
       double awTP = GetTPTarget();
       if(awTP <= 0) awTP = TP_Dollar;
-      if(rem >= awTP) { CloseAllMine(); g_isWaitAW = false; g_emergHedged = false; g_lastAction = "AW+TP $" + DoubleToStr(rem,1); DrawMini("ACTIVE"); return; }
+      if(rem >= awTP) { CloseAllMine(); g_isWaitAW = false; g_emergHedged = false; g_awLossCut = false; SetCooldown(); g_lastAction = "AW+TP $" + DoubleToStr(rem,1) + " Cool:" + IntegerToString(CooldownMin) + "m"; DrawMini("COOLDOWN"); return; }
       if(rem >= 0)
-      { g_isWaitAW = false; g_emergHedged = false; g_lastAction = "AW OK, run TP"; DrawMini("ACTIVE"); return; }
+      { g_isWaitAW = false; g_emergHedged = false; g_awLossCut = false; SetCooldown(); g_lastAction = "AW OK Cool:" + IntegerToString(CooldownMin) + "m"; DrawMini("COOLDOWN"); return; }
       g_lastAction = "FROZEN $" + DoubleToStr(rem,1); DrawMini("WAIT AW"); return;
    }
 
@@ -703,6 +1076,12 @@ void HandleWaitAW()
 //| UTILITY                                                           |
 //+------------------------------------------------------------------+
 bool IsNewBar() { if(g_lastBar != Time[0]) { g_lastBar = Time[0]; return true; } return false; }
+
+void SetCooldown()
+{
+   g_mgFired = false;   // reset MG flag for next cycle
+   if(CooldownMin > 0) { g_awCooldownEnd = TimeCurrent() + CooldownMin * 60; g_lastBar = Time[0]; }
+}
 
 bool CanTrade()
 {
@@ -874,9 +1253,9 @@ void DrawMini(string status)
    int px = 15, py = 18, pw = 260, LH = 16;
    int cx = px + 8, vx = px + pw - 8;
 
-   int lines = 5;
+   int lines = 6;
    if(g_newsStatus != "") lines++;
-   MiniBox("CE_bg", px, py, pw, LH * lines + 16);
+   MiniBox("CF_bg", px, py, pw, LH * lines + 16);
    int y = py + 6;
 
    // L1: Label | Status
@@ -884,11 +1263,12 @@ void DrawMini(string status)
    color stClr = clrOrangeRed;
    if(status == "ACTIVE") stClr = clrLime;
    else if(status == "WAITING" || status == "SKIP") stClr = C'255,220,80';
+   else if(status == "COOLDOWN") stClr = C'255,180,50';
    else if(status == "MON WAIT") stClr = C'100,180,255';
    else if(StringFind(status,"FRI") >= 0) stClr = clrOrange;
    else if(StringFind(status,"AW") >= 0) stClr = clrOrange;
    else if(status == "NEWS") stClr = C'255,80,80';
-   MiniLab("l1", cx, y, AccountLabel + " | " + status + nightF, stClr, 9); y += LH;
+   MiniLab("l1", cx, y, AccountLabel + " CF | " + status + nightF, stClr, 9); y += LH;
 
    // L2: PnL — show EA + AW combined
    double eaPnL  = CalcPnL(OP_BUY) + CalcPnL(OP_SELL);
@@ -912,8 +1292,8 @@ void DrawMini(string status)
       // No AW → show normal
       color pClr = (eaPnL >= 0) ? C'100,230,100' : C'255,80,80';
       string ddBar = "";
-      if(BasketSL_Dollar > 0 && eaPnL < 0)
-      { double r = MathAbs(eaPnL)/BasketSL_Dollar; ddBar = (r>=0.8)?" !!!":(r>=0.5)?" !!":(r>=0.25)?" !":""; }
+      if(UseMartingale && MG_LossThreshold > 0 && eaPnL < 0)
+      { double r = MathAbs(eaPnL)/MG_LossThreshold; ddBar = (r>=1.0)?" MG!":(r>=0.5)?" !":""; }
       MiniLab("l2", cx, y, (eaPnL>=0?"+":"") + DoubleToStr(eaPnL,2) + "$ | " +
               IntegerToString(eaOrd) + "ord" + ddBar, pClr, 9);
    }
@@ -935,15 +1315,22 @@ void DrawMini(string status)
    color dClr = (g_dayPnL >= 0) ? C'100,230,100' : C'255,80,80';
    string l4Txt = "Day:" + (g_dayPnL>=0?"+":"") + DoubleToStr(g_dayPnL,2) +
            " TP:" + IntegerToString(g_scalpTPDay) + "/" + IntegerToString(g_scalpTPCount) +
-           " SL:" + IntegerToString(g_awDayCount) + "/" + IntegerToString(g_basketSLCount);
+           " AW:" + IntegerToString(g_awDayCount);
    if(g_lcCount > 0) l4Txt += " LC:" + IntegerToString(g_lcDayCount) + "/" + IntegerToString(g_lcCount);
    MiniLab("l4", cx, y, l4Txt, dClr, 8); y += LH;
 
-   // L5: Action
+   // L5: Thai Time + Action
+   MqlDateTime thaiDT;
+   TimeToStruct(TimeGMT() + 7 * 3600, thaiDT);
+   string thaiTime = StringFormat("%02d:%02d:%02d", thaiDT.hour, thaiDT.min, thaiDT.sec);
+   string thaiDate = StringFormat("%02d/%02d/%04d", thaiDT.day, thaiDT.mon, thaiDT.year);
+   MiniLab("l5t", cx, y, "TH: " + thaiDate + " " + thaiTime, C'100,200,255', 7); y += LH;
+
+   // L6: Action
    string act = g_lastAction; if(StringLen(act) > 30) act = StringSubstr(act,0,30) + "..";
    MiniLab("l5", cx, y, act, C'100,100,120', 7); y += LH;
 
-   // L6: News
+   // L7: News
    if(g_newsBlock)             MiniLab("l6", cx, y, "!! " + g_newsStatus, C'255,80,80', 7);
    else if(g_newsStatus != "") MiniLab("l6", cx, y, g_newsStatus, C'120,120,140', 7);
    else                        MiniLab("l6", 0, 0, "", clrNONE, 1);
@@ -974,7 +1361,7 @@ void MiniBox(string name, int x, int y, int w, int h)
 
 void MiniLab(string id, int x, int y, string text, color clr, int sz)
 {
-   string name = "CE_" + id;
+   string name = "CF_" + id;
    if(ObjectFind(0, name) < 0)
    { ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
      ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -990,7 +1377,7 @@ void MiniLab(string id, int x, int y, string text, color clr, int sz)
 
 void MiniLabR(string id, int x, int y, string text, color clr, int sz)
 {
-   string name = "CE_" + id;
+   string name = "CF_" + id;
    if(ObjectFind(0, name) < 0)
    { ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
      ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);

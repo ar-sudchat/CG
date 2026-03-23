@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS accounts (
     notes TEXT
 );
 
+-- Cent account support (run once to add to existing table)
+-- ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) DEFAULT 'standard';
+-- UPDATE accounts SET account_type = 'cent' WHERE account_number = 90079262;
+
 -- Auto-lock columns (run once to add to existing table)
 -- ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_lock_enabled BOOLEAN DEFAULT TRUE;
 -- ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_lock_threshold DECIMAL(10,2) DEFAULT 3.0;

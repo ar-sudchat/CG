@@ -9,6 +9,7 @@ import AccountCard from '@/components/AccountCard';
 import ChartSection from '@/components/ChartSection';
 import DateRangeFilter from '@/components/DateRangeFilter';
 import PullToRefresh from '@/components/PullToRefresh';
+import ServerAlert from '@/components/ServerAlert';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -30,6 +31,8 @@ export default function PortfolioPage() {
     keepPreviousData: true,
   });
 
+  const [bulkLocking, setBulkLocking] = useState(false);
+
   const handleToggleLock = async (accountNumber: number, lock: boolean | null) => {
     await fetch(`/api/account/${accountNumber}/lock`, {
       method: 'PATCH',
@@ -37,6 +40,28 @@ export default function PortfolioPage() {
       body: JSON.stringify({ manual_lock: lock }),
     });
     mutate();
+  };
+
+  const handleBulkLock = async (lock: boolean | null) => {
+    setBulkLocking(true);
+    await fetch('/api/account/all/lock', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manual_lock: lock }),
+    });
+    await mutate();
+    setBulkLocking(false);
+  };
+
+  const handleBulkAutoLock = async (enabled: boolean) => {
+    setBulkLocking(true);
+    await fetch('/api/pair-groups', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pair_group: 'all', auto_lock_enabled: enabled }),
+    });
+    await mutate();
+    setBulkLocking(false);
   };
 
   const handleToggleAutoLock = useCallback(async (pairGroup: string, enabled: boolean) => {
@@ -138,6 +163,9 @@ export default function PortfolioPage() {
   return (
     <PullToRefresh onRefresh={() => mutate()}>
     <div className="p-4 space-y-5 pb-20 md:pb-4">
+      {/* Server Alert — stale accounts with open orders */}
+      {data?.accounts && <ServerAlert accounts={data.accounts} />}
+
       {/* Filters — collapsible on mobile, always visible on md+ */}
       {(() => {
         const hasActiveFilter = selectedOwner !== 'all' || orderFilter !== 'all';
@@ -232,12 +260,50 @@ export default function PortfolioPage() {
         );
       })()}
 
-      {/* Section: Portfolio Summary */}
+      {/* Bulk Controls — above Portfolio */}
       {t && (
         <div>
+          <div className="grid grid-cols-4 gap-1.5 mb-3">
+            <button
+              onClick={() => handleBulkAutoLock(true)}
+              disabled={bulkLocking}
+              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+            >
+              Auto On
+            </button>
+            <button
+              onClick={() => handleBulkAutoLock(false)}
+              disabled={bulkLocking}
+              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20 hover:bg-slate-500/20 transition-colors disabled:opacity-50"
+            >
+              Auto Off
+            </button>
+            <button
+              onClick={() => handleBulkLock(true)}
+              disabled={bulkLocking}
+              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Lock
+            </button>
+            <button
+              onClick={() => handleBulkLock(false)}
+              disabled={bulkLocking}
+              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Unlock
+            </button>
+          </div>
           <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
             {selectedOwner === 'all' ? 'Portfolio Summary' : selectedOwner}
           </h2>
+        </div>
+      )}
+
+      {/* Section: Portfolio Summary */}
+      {t && (
+        <div>
           <PortfolioSummary
             totalBalance={t.totalBalance}
             totalEquity={t.totalEquity}

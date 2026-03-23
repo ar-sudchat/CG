@@ -12,7 +12,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const account = searchParams.get('account') || 'all';
     const days = parseInt(searchParams.get('days') || '7');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const rawLimit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(rawLimit, 10000);
+
+    // Cent account lookup
+    const centAccounts = await sql`
+      SELECT account_number FROM accounts WHERE account_type = 'cent' AND is_active = TRUE
+    `;
+    const centSet = new Set(centAccounts.map((r) => String(r.account_number)));
 
     let trades;
 
@@ -57,31 +64,35 @@ export async function GET(request: NextRequest) {
       `;
     }
 
-    // Calculate summary
+    // Calculate summary (with cent→USD conversion)
     let totalProfit = 0;
     let wins = 0;
     trades.forEach((t) => {
-      const p = Number(t.profit) || 0;
+      const div = centSet.has(String(t.account_number)) ? 100 : 1;
+      const p = (Number(t.profit) || 0) / div;
       totalProfit += p;
       if (p > 0) wins++;
     });
 
     return NextResponse.json({
-      trades: trades.map((t) => ({
-        ticket: t.ticket,
-        account_number: t.account_number,
-        type: t.type,
-        lots: Number(t.lots),
-        open_price: Number(t.open_price),
-        close_price: Number(t.close_price),
-        profit: Number(t.profit) || 0,
-        swap: Number(t.swap) || 0,
-        commission: Number(t.commission) || 0,
-        open_time: t.open_time,
-        close_time: t.close_time,
-        magic_number: t.magic_number,
-        comment: t.comment,
-      })),
+      trades: trades.map((t) => {
+        const div = centSet.has(String(t.account_number)) ? 100 : 1;
+        return {
+          ticket: t.ticket,
+          account_number: t.account_number,
+          type: t.type,
+          lots: Number(t.lots),
+          open_price: Number(t.open_price),
+          close_price: Number(t.close_price),
+          profit: (Number(t.profit) || 0) / div,
+          swap: (Number(t.swap) || 0) / div,
+          commission: (Number(t.commission) || 0) / div,
+          open_time: t.open_time,
+          close_time: t.close_time,
+          magic_number: t.magic_number,
+          comment: t.comment,
+        };
+      }),
       summary: {
         total_profit: totalProfit,
         total_trades: trades.length,

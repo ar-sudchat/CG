@@ -36,8 +36,8 @@ export async function createToken(payload: AuthPayload): Promise<string> {
  * null = admin (sees all accounts)
  * number[] = user's active assigned accounts
  */
-export async function getAllowedAccounts(userId: number, role: string): Promise<number[] | null> {
-  if (role === 'admin') return null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getAllowedAccounts(userId: number, _role: string): Promise<number[] | null> {
   const rows = await sql`
     SELECT ua.account_number FROM user_accounts ua
     JOIN accounts a ON ua.account_number = a.account_number
