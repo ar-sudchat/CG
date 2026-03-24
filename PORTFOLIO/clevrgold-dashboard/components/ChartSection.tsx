@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import DailyPnlChart from '@/components/DailyPnlChart';
 import PnlCalendar from '@/components/PnlCalendar';
@@ -60,30 +60,51 @@ interface ChartSectionProps {
 export default function ChartSection({ accountCount }: ChartSectionProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('pnl');
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const openFullscreen = useCallback(() => setShowFullscreen(true), []);
   const closeFullscreen = useCallback(() => setShowFullscreen(false), []);
 
+  const scroll = useCallback((dir: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' });
+  }, []);
+
   return (
     <div className="min-w-0">
       {/* Tab bar */}
-      <div className="overflow-x-auto no-scrollbar mb-2">
-        <div className="flex gap-1 w-max">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                'px-3 py-1.5 text-xs font-mono rounded-lg transition-colors whitespace-nowrap',
-                activeTab === tab.key
-                  ? 'bg-[#eab308]/20 text-[#eab308]'
-                  : 'bg-[#111827] text-slate-500 hover:text-slate-300 border border-[#1e2a3a]'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="flex items-center gap-1 mb-2">
+        <button
+          onClick={() => scroll('left')}
+          className="flex-shrink-0 w-6 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 md:hidden"
+          aria-label="Scroll left"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div ref={scrollRef} className="overflow-x-auto no-scrollbar flex-1 min-w-0">
+          <div className="flex gap-1 w-max">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-mono rounded-lg transition-colors whitespace-nowrap',
+                  activeTab === tab.key
+                    ? 'bg-[#eab308]/20 text-[#eab308]'
+                    : 'bg-[#111827] text-slate-500 hover:text-slate-300 border border-[#1e2a3a]'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <button
+          onClick={() => scroll('right')}
+          className="flex-shrink-0 w-6 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 md:hidden"
+          aria-label="Scroll right"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
 
       {/* Chart content */}
