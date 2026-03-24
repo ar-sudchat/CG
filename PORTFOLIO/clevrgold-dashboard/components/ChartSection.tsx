@@ -67,13 +67,13 @@ export default function ChartSection({ accountCount }: ChartSectionProps) {
   return (
     <div>
       {/* Tab bar */}
-      <div className="flex gap-1 mb-2">
+      <div className="flex gap-1 mb-2 overflow-x-auto no-scrollbar -mx-4 px-4">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-3 py-1.5 text-xs font-mono rounded-lg transition-colors',
+              'px-3 py-1.5 text-xs font-mono rounded-lg transition-colors whitespace-nowrap flex-shrink-0',
               activeTab === tab.key
                 ? 'bg-[#eab308]/20 text-[#eab308]'
                 : 'bg-[#111827] text-slate-500 hover:text-slate-300 border border-[#1e2a3a]'
