@@ -53,7 +53,7 @@ export default function RootLayout({
         <CurrencyProvider>
           <PWARegister />
           <Header />
-          <main className="max-w-7xl mx-auto">
+          <main className="max-w-7xl mx-auto overflow-x-hidden">
             {children}
           </main>
           <BottomNav />
