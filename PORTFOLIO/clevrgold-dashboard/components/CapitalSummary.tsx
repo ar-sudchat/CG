@@ -9,9 +9,9 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 function PnlValue({ value, size = 'sm', convert, symbol }: { value: number; size?: 'sm' | 'lg' | 'xl'; convert: (v: number) => number; symbol: string }) {
   const converted = convert(value);
   const prefix = converted >= 0 ? '+' : '';
-  const textSize = size === 'xl' ? 'text-2xl' : size === 'lg' ? 'text-lg' : 'text-sm';
+  const textSize = size === 'xl' ? 'text-base sm:text-2xl' : size === 'lg' ? 'text-sm sm:text-lg' : 'text-xs sm:text-sm';
   return (
-    <span className={cn(textSize, 'font-mono font-bold', converted >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+    <span className={cn(textSize, 'font-mono font-bold truncate block', converted >= 0 ? 'text-emerald-400' : 'text-red-400')}>
       {prefix}{symbol}{Math.abs(converted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </span>
   );
@@ -60,53 +60,50 @@ export default function CapitalSummary() {
       </div>
 
       {/* Current Status */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-[#0a0e17] rounded-lg p-3 border border-[#1e2a3a]">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="bg-[#0a0e17] rounded-lg p-2 sm:p-3 border border-[#1e2a3a] min-w-0">
           <div className="text-[10px] text-slate-500 uppercase mb-1">Balance</div>
-          <div className="text-lg font-mono font-bold text-slate-200">{fmtVal(current.balance)}</div>
+          <div className="text-sm sm:text-lg font-mono font-bold text-slate-200 truncate">{fmtVal(current.balance)}</div>
         </div>
-        <div className="bg-[#0a0e17] rounded-lg p-3 border border-[#1e2a3a]">
+        <div className="bg-[#0a0e17] rounded-lg p-2 sm:p-3 border border-[#1e2a3a] min-w-0">
           <div className="text-[10px] text-slate-500 uppercase mb-1">Equity</div>
-          <div className="text-lg font-mono font-bold text-slate-200">{fmtVal(current.equity)}</div>
+          <div className="text-sm sm:text-lg font-mono font-bold text-slate-200 truncate">{fmtVal(current.equity)}</div>
         </div>
-        <div className={cn('rounded-lg p-3 border', current.floating >= 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/10 border-red-500/30')}>
+        <div className={cn('rounded-lg p-2 sm:p-3 border min-w-0', current.floating >= 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/10 border-red-500/30')}>
           <div className="text-[10px] text-slate-500 uppercase mb-1">Floating P&L</div>
           <PnlValue value={current.floating} size="lg" convert={convert} symbol={symbol} />
         </div>
       </div>
 
       {/* P&L Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {/* Daily */}
-        <div className="bg-[#0a0e17] rounded-lg p-3 border border-[#1e2a3a]">
+        <div className="bg-[#0a0e17] rounded-lg p-2 sm:p-3 border border-[#1e2a3a] min-w-0">
           <div className="text-[10px] text-slate-500 uppercase mb-2">Today</div>
           <PnlValue value={day.pnl} size="lg" convert={convert} symbol={symbol} />
-          <div className="text-[10px] text-slate-500 mt-1">
+          <div className="text-[9px] sm:text-[10px] text-slate-500 mt-1 truncate">
             start: {fmtVal(day.start_equity)}
-            {day.deposits > 0 && <span className="text-blue-400"> +dp: {fmtVal(day.deposits)}</span>}
           </div>
         </div>
 
         {/* Weekly */}
-        <div className="bg-[#0a0e17] rounded-lg p-3 border border-[#1e2a3a]">
+        <div className="bg-[#0a0e17] rounded-lg p-2 sm:p-3 border border-[#1e2a3a] min-w-0">
           <div className="text-[10px] text-slate-500 uppercase mb-2">This Week</div>
           <PnlValue value={week.pnl} size="lg" convert={convert} symbol={symbol} />
-          <div className="text-[10px] text-slate-500 mt-1">
+          <div className="text-[9px] sm:text-[10px] text-slate-500 mt-1 truncate">
             start: {fmtVal(week.start_equity)}
-            {week.withdrawals > 0 && <span className="text-amber-400"> -wd: {fmtVal(week.withdrawals)}</span>}
-            {week.deposits > 0 && <span className="text-blue-400"> +dp: {fmtVal(week.deposits)}</span>}
           </div>
+          {week.withdrawals > 0 && <div className="text-[9px] text-amber-400 truncate">-wd: {fmtVal(week.withdrawals)}</div>}
         </div>
 
         {/* Monthly */}
-        <div className="bg-[#0a0e17] rounded-lg p-3 border border-[#1e2a3a]">
+        <div className="bg-[#0a0e17] rounded-lg p-2 sm:p-3 border border-[#1e2a3a] min-w-0">
           <div className="text-[10px] text-slate-500 uppercase mb-2">This Month</div>
           <PnlValue value={month.pnl} size="lg" convert={convert} symbol={symbol} />
-          <div className="text-[10px] text-slate-500 mt-1">
+          <div className="text-[9px] sm:text-[10px] text-slate-500 mt-1 truncate">
             start: {fmtVal(month.start_equity)}
-            {month.withdrawals > 0 && <span className="text-amber-400"> -wd: {fmtVal(month.withdrawals)}</span>}
-            {month.deposits > 0 && <span className="text-blue-400"> +dp: {fmtVal(month.deposits)}</span>}
           </div>
+          {month.withdrawals > 0 && <div className="text-[9px] text-amber-400 truncate">-wd: {fmtVal(month.withdrawals)}</div>}
         </div>
       </div>
 
@@ -131,7 +128,7 @@ export default function CapitalSummary() {
           </div>
           <div>
             <div className="text-[10px] text-slate-500 mb-1">Equity หลังปิด</div>
-            <div className="text-lg font-mono font-bold text-slate-200">{fmtVal(cut_loss.equity_after)}</div>
+            <div className="text-sm sm:text-lg font-mono font-bold text-slate-200 truncate">{fmtVal(cut_loss.equity_after)}</div>
           </div>
           <div>
             <div className="text-[10px] text-slate-500 mb-1">ผลเดือนนี้</div>
@@ -139,7 +136,7 @@ export default function CapitalSummary() {
           </div>
           <div>
             <div className="text-[10px] text-slate-500 mb-1">Drawdown</div>
-            <div className={cn('text-lg font-mono font-bold', current.floating >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+            <div className={cn('text-sm sm:text-lg font-mono font-bold', current.floating >= 0 ? 'text-emerald-400' : 'text-red-400')}>
               {current.balance > 0 ? ((current.floating / current.balance) * 100).toFixed(1) : '0.0'}%
             </div>
           </div>
