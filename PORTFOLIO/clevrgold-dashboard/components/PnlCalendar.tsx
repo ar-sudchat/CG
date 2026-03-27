@@ -136,10 +136,6 @@ export default function PnlCalendar() {
   const nextMonth = () => setViewDate(({ year, month }) =>
     month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 }
   );
-  const isCurrentMonth = () => {
-    const now = new Date();
-    return year === now.getFullYear() && month === now.getMonth();
-  };
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 
@@ -167,8 +163,7 @@ export default function PnlCalendar() {
         </div>
         <button
           onClick={nextMonth}
-          disabled={isCurrentMonth()}
-          className="p-1.5 rounded-lg hover:bg-[#1e2a3a] text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-1.5 rounded-lg hover:bg-[#1e2a3a] text-slate-400 hover:text-slate-200 transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
