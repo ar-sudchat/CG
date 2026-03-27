@@ -255,7 +255,7 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
 
 
         {/* Insight Panel */}
-        {account.insight && <InsightPanel insight={account.insight as Parameters<typeof InsightPanel>[0]['insight']} />}
+        {account.insight && <InsightPanel insight={account.insight as unknown as Parameters<typeof InsightPanel>[0]['insight']} />}
 
         {/* Footer: Margin + Spread */}
         <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
