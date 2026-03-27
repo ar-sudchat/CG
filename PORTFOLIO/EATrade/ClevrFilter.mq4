@@ -1242,9 +1242,139 @@ void TrackDD()
 //| L5: Last Action                                                   |
 //| L6: News status                                                   |
 //+------------------------------------------------------------------+
+//| INSIGHT FILE — Write indicator data for web dashboard            |
+//+------------------------------------------------------------------+
+void WriteInsightFile()
+{
+   static datetime lastWrite = 0;
+   if(TimeCurrent() - lastWrite < 10) return;
+   lastWrite = TimeCurrent();
+
+   string fname = "collector_insight_" + IntegerToString(AccountNumber()) + ".csv";
+   int h = FileOpen(fname, FILE_WRITE|FILE_CSV, '|');
+   if(h < 0) return;
+
+   // BB Width (M15)
+   double bb_upper = iBands(Symbol(), PERIOD_M15, 20, 2, 0, PRICE_CLOSE, MODE_UPPER, 0);
+   double bb_lower = iBands(Symbol(), PERIOD_M15, 20, 2, 0, PRICE_CLOSE, MODE_LOWER, 0);
+   double bb_width = (bb_upper - bb_lower) / Point / g_pipDiv;
+
+   // Slope (MA20 H1)
+   double ma_now  = iMA(Symbol(), PERIOD_H1, 20, 0, MODE_SMA, PRICE_CLOSE, 0);
+   double ma_prev = iMA(Symbol(), PERIOD_H1, 20, 0, MODE_SMA, PRICE_CLOSE, AutoMA_SlopeBars);
+   double slope_raw = (ma_now - ma_prev) / Point / g_pipDiv;
+   double slope_abs = MathAbs(slope_raw);
+   string slope_dir = (slope_raw > AutoMA_SlopeMin) ? "UP" : (slope_raw < -AutoMA_SlopeMin) ? "DN" : "FLAT";
+
+   // RSI (M15)
+   double rsi = iRSI(Symbol(), PERIOD_M15, RSI_Period, PRICE_CLOSE, 0);
+
+   // ATR Ratio
+   double atrNow = iATR(Symbol(), PERIOD_M1, 14, 1) / Point / g_pipDiv;
+   double atrAvg = iATR(Symbol(), PERIOD_M1, ATR_NormPeriod, 1) / Point / g_pipDiv;
+   double atrRatio = (atrAvg > 0) ? atrNow / atrAvg : 0;
+
+   // BB Position
+   double bb_range = bb_upper - bb_lower;
+   int bb_pos_pct = (bb_range > 0) ? (int)((Close[0] - bb_lower) / bb_range * 100) : 50;
+   string bb_pos = (bb_pos_pct <= 25) ? "LOWER" : (bb_pos_pct >= 75) ? "UPPER" : "MIDDLE";
+
+   // Mode
+   string mode = g_isRangeMode ? "RANGE" : "TREND";
+
+   // Trend reason
+   string trend_reason = "";
+   if(bb_width > Range_BB_Width_Max)
+      trend_reason = "BB " + DoubleToStr(bb_width,0) + ">" + DoubleToStr(Range_BB_Width_Max,0) + " (wide)";
+   else if(slope_abs > Range_Slope_Max)
+      trend_reason = "slope " + DoubleToStr(slope_abs,0) + ">" + DoubleToStr(Range_Slope_Max,0) + " (trending)";
+   else
+      trend_reason = "sideway BB<=" + DoubleToStr(Range_BB_Width_Max,0) + " slope<=" + DoubleToStr(Range_Slope_Max,0);
+
+   // Price vs MA (pips)
+   double priceVsMA = (Close[0] - ma_now) / Point / g_pipDiv;
+
+   // M15 slope
+   double m15_now  = iMA(Symbol(), PERIOD_M15, 20, 0, MODE_SMA, PRICE_CLOSE, 0);
+   double m15_prev = iMA(Symbol(), PERIOD_M15, 20, 0, MODE_SMA, PRICE_CLOSE, 1);
+   double m15_slope = (m15_now - m15_prev) / Point / g_pipDiv;
+   double m15_abs = MathAbs(m15_slope);
+   string m15_dir = (m15_slope > 0.5) ? "UP" : (m15_slope < -0.5) ? "DN" : "FLAT";
+
+   // Range signal
+   string rng_signal = "-";
+   if(g_isRangeMode)
+   {
+      if(bb_pos == "LOWER" && rsi < Range_RSI_Buy_Max) rng_signal = "BUY";
+      else if(bb_pos == "UPPER" && rsi > Range_RSI_Sell_Min) rng_signal = "SELL";
+      else if(bb_pos == "LOWER") rng_signal = "BUY?";
+      else if(bb_pos == "UPPER") rng_signal = "SELL?";
+   }
+
+   // Next event (skip zone or session close)
+   string next_event = "-";
+   int next_min = 9999;
+   int thaiH = GetThaiHour();
+   int thaiM = GetThaiMinute();
+   int minOfDay = thaiH * 60 + thaiM;
+
+   if(UseSkipZones)
+   {
+      if(minOfDay < SkipZone1_Start && (SkipZone1_Start - minOfDay) < next_min)
+      { next_event = "Zone1"; next_min = SkipZone1_Start - minOfDay; }
+      else if(minOfDay >= SkipZone1_Start && minOfDay <= SkipZone1_End)
+      { next_event = "Zone1End"; next_min = SkipZone1_End - minOfDay; }
+      else if(minOfDay < SkipZone2_Start && (SkipZone2_Start - minOfDay) < next_min)
+      { next_event = "Zone2"; next_min = SkipZone2_Start - minOfDay; }
+      else if(minOfDay >= SkipZone2_Start && minOfDay <= SkipZone2_End)
+      { next_event = "Zone2End"; next_min = SkipZone2_End - minOfDay; }
+   }
+
+   if(UseTradingHours)
+   {
+      int closeMin = TradeEnd * 60 - minOfDay;
+      if(closeMin > 0 && closeMin < next_min)
+      { next_event = "Close"; next_min = closeMin; }
+   }
+
+   if(next_min >= 9999) next_min = 0;
+
+   // Last action/skip reason
+   string action = g_lastAction;
+   // Sanitize pipes in action string
+   StringReplace(action, "|", "/");
+
+   FileWrite(h,
+      IntegerToString(AccountNumber()),     // 0
+      DoubleToStr(bb_width, 0),             // 1  bb_width
+      DoubleToStr(Range_BB_Width_Max, 0),   // 2  bb_threshold
+      DoubleToStr(slope_abs, 1),            // 3  slope
+      slope_dir,                            // 4  slope_dir
+      DoubleToStr(Range_Slope_Max, 0),      // 5  slope_threshold
+      DoubleToStr(rsi, 1),                  // 6  rsi
+      rng_signal,                           // 7  rng_signal
+      DoubleToStr(atrRatio, 2),             // 8  atr_ratio
+      bb_pos,                               // 9  bb_pos
+      IntegerToString(bb_pos_pct),          // 10 bb_pos_pct
+      DoubleToStr(ma_now, 2),               // 11 ma20
+      mode,                                 // 12 mode
+      trend_reason,                         // 13 trend_reason
+      DoubleToStr(priceVsMA, 1),            // 14 price_vs_ma
+      m15_dir,                              // 15 m15_dir
+      DoubleToStr(m15_abs, 1),              // 16 m15_pips
+      action,                               // 17 last_action
+      next_event,                           // 18 next_event
+      IntegerToString(next_min),            // 19 next_event_min
+      TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS) // 20 timestamp
+   );
+   FileClose(h);
+}
+
+//+------------------------------------------------------------------+
 void DrawMini(string status)
 {
    if(!ShowDashboard) return;
+   if(!IsTesting()) WriteInsightFile();
    static uint lastMs = 0;
    uint now = GetTickCount();
    if(now - lastMs < (IsTesting() ? 2000 : 500)) return;

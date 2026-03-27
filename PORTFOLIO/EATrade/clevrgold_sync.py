@@ -229,6 +229,13 @@ def init_db():
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
         );
     """)
+    # Auto-migration: add insight JSONB column if not exists
+    cur.execute("""
+        DO $$ BEGIN
+            ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS insight JSONB;
+        EXCEPTION WHEN others THEN NULL;
+        END $$;
+    """)
     conn.commit()
     cur.close()
     log.info("Database initialized")
@@ -507,6 +514,68 @@ def sync_snapshots():
             log.warning(f"AW detect error: {e}")
 
     return dedup  # Return for reuse by sync_lock_status
+
+
+def sync_insight():
+    """Read collector_insight_*.csv and update insight JSONB in snapshots."""
+    files = find_csv_files("collector_insight_")
+    if not files:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+    stale_limit = STALE_MINUTES * 60
+    updated = 0
+
+    for f in files:
+        if not file_changed(f):
+            continue
+
+        age = file_age_seconds(f)
+        if age > stale_limit:
+            continue
+
+        row = read_csv_line(f)
+        if not row or len(row) < 20:
+            continue
+
+        try:
+            import json
+            acc = int(row[0])
+            insight = json.dumps({
+                "bb_width": float(row[1]),
+                "bb_threshold": float(row[2]),
+                "slope": float(row[3]),
+                "slope_dir": row[4],
+                "slope_threshold": float(row[5]),
+                "rsi": float(row[6]),
+                "rng_signal": row[7],
+                "atr_ratio": float(row[8]),
+                "bb_pos": row[9],
+                "bb_pos_pct": int(row[10]),
+                "ma20": float(row[11]),
+                "mode": row[12],
+                "trend_reason": row[13],
+                "price_vs_ma": float(row[14]),
+                "m15_dir": row[15],
+                "m15_pips": float(row[16]),
+                "last_action": row[17],
+                "next_event": row[18],
+                "next_event_min": int(row[19]),
+            })
+
+            cur.execute("""
+                UPDATE snapshots SET insight = %s::jsonb
+                WHERE account_number = %s
+            """, (insight, acc))
+            updated += 1
+        except (ValueError, IndexError) as e:
+            log.error(f"Insight parse error: {e}")
+
+    if updated:
+        conn.commit()
+        log.debug(f"Insight: {updated} updated")
+    cur.close()
 
 
 def sync_trades():
@@ -907,6 +976,7 @@ def main():
                 t0 = time.time()
                 snap_data = sync_snapshots()
                 sync_positions()
+                sync_insight()
                 sync_lock_status(snap_data)
                 elapsed = time.time() - t0
                 if elapsed > 5:

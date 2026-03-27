@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cn, formatMoneyShort, formatPnl, formatPnlShort, formatMarginLevel, pnlColor, pnlBgColor, WEEKLY_TARGET_USD, timeAgoFromSeconds } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import StatusBadge from './StatusBadge';
+import InsightPanel from './InsightPanel';
 
 interface Account {
   account_number: number;
@@ -36,6 +37,7 @@ interface Account {
   is_locked?: boolean;
   lock_reason?: string | null;
   locked_by?: number | null;
+  insight?: Record<string, unknown> | null;
 }
 
 export default function AccountCard({ account, isWeekend, onToggleLock }: { account: Account; isWeekend?: boolean; onToggleLock?: (accountNumber: number, lock: boolean | null) => void }) {
@@ -251,6 +253,9 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
           })()}
         </div>
 
+
+        {/* Insight Panel */}
+        {account.insight && <InsightPanel insight={account.insight as Parameters<typeof InsightPanel>[0]['insight']} />}
 
         {/* Footer: Margin + Spread */}
         <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">

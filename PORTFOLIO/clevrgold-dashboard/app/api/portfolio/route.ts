@@ -20,6 +20,7 @@ export async function GET() {
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
+          s.insight,
           EXTRACT(EPOCH FROM (NOW() - s.updated_at)) as seconds_ago
         FROM accounts a
         LEFT JOIN snapshots s ON a.account_number = s.account_number
@@ -35,6 +36,7 @@ export async function GET() {
           s.balance, s.equity, s.floating_pnl, s.margin, s.free_margin,
           s.margin_level, s.daily_pnl, s.weekly_pnl,
           s.open_orders, s.aw_orders, s.mode, s.tp_today, s.spread, s.updated_at,
+          s.insight,
           EXTRACT(EPOCH FROM (NOW() - s.updated_at)) as seconds_ago
         FROM accounts a
         LEFT JOIN snapshots s ON a.account_number = s.account_number
@@ -189,6 +191,7 @@ export async function GET() {
         updated_at: r.updated_at,
         seconds_ago: Math.round(Number(r.seconds_ago) || 0),
         is_offline: (Number(r.seconds_ago) || 999999) > 300,
+        insight: r.insight || null,
       };
     });
 
