@@ -66,7 +66,7 @@ export default function ChartSection({ accountCount }: ChartSectionProps) {
   return (
     <div className="min-w-0">
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 mb-2">
+      <div className="flex gap-1 mb-2 overflow-x-auto scrollbar-hide">
         {tabs.map((tab) => (
           <button
             key={tab.key}
