@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       tradesData = auth.accountFilter === null
         ? await sql`
           SELECT
-            TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
+            TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
             ROUND(SUM(
               (t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))
               / CASE WHEN t.account_number = ANY(${centAccountNumbers.length > 0 ? centAccountNumbers : [0]}) THEN 100.0 ELSE 1.0 END
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         `
         : await sql`
           SELECT
-            TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
+            TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
             ROUND(SUM(
               (t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))
               / CASE WHEN t.account_number = ANY(${centAccountNumbers.length > 0 ? centAccountNumbers : [0]}) THEN 100.0 ELSE 1.0 END
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       const isCentSingle = centSet.has(String(accountNum));
       tradesData = await sql`
         SELECT
-          TO_CHAR(t.close_time, 'YYYY-MM-DD') as day,
+          TO_CHAR(t.close_time AT TIME ZONE ${MT4_TZ}, 'YYYY-MM-DD') as day,
           ROUND(SUM(t.profit + COALESCE(t.swap, 0) + COALESCE(t.commission, 0))::numeric / ${isCentSingle ? 100.0 : 1.0}, 2) as pnl,
           COUNT(*) as trades,
           COUNT(CASE WHEN t.profit > 0 THEN 1 END) as wins
