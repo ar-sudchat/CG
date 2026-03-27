@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import sql, { MT4_TZ } from '@/lib/db';
+import sql, { MT4_TZ, ensureInsightColumn } from '@/lib/db';
 import { getSessionAndAccounts } from '@/lib/auth';
 import { computeAllLockStatuses, findStaleOverrides } from '@/lib/lock';
 
@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    await ensureInsightColumn();
     const auth = await getSessionAndAccounts();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
