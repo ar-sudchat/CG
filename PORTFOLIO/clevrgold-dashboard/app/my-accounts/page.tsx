@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -22,6 +23,7 @@ const ALERT_TYPES = [
 ] as const;
 
 export default function MyAccountsPage() {
+  const router = useRouter();
   const { data, mutate } = useSWR('/api/my-accounts', fetcher);
   const [toggling, setToggling] = useState<number | null>(null);
 
@@ -294,6 +296,18 @@ export default function MyAccountsPage() {
           </div>
         )}
       </div>
+
+      {/* Logout */}
+      <button
+        onClick={async () => {
+          await fetch('/api/auth/logout', { method: 'POST' });
+          router.push('/login');
+          router.refresh();
+        }}
+        className="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-colors"
+      >
+        Logout
+      </button>
     </div>
   );
 }
