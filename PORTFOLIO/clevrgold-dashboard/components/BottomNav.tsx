@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/lib/useUser';
 
 
 function IconPortfolio({ active }: { active: boolean }) {
@@ -128,6 +129,7 @@ const iconMap: Record<string, React.FC<{ active: boolean }>> = {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { isAdmin } = useUser();
   if (pathname === '/login' || pathname === '/register') return null;
 
   const navItems = [
@@ -136,7 +138,7 @@ export default function BottomNav() {
     { href: '/my-accounts', label: 'Accounts', iconKey: 'accounts' },
     { href: '/finance', label: 'Finance', iconKey: 'finance' },
     { href: '/aw-report', label: 'AW', iconKey: 'aw' },
-    // Admin only on desktop (Header)
+    ...(isAdmin ? [{ href: '/admin', label: 'Admin', iconKey: 'admin' }] : []),
   ];
 
   return (
