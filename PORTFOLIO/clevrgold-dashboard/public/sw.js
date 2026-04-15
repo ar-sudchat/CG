@@ -1,7 +1,7 @@
 // ClevrGold Dashboard — Service Worker
 // Minimal SW for PWA installability + app shell caching
 
-const CACHE_NAME = 'clevrgold-v1';
+const CACHE_NAME = 'clevrgold-v2';
 const SHELL_URLS = [
   '/',
   '/icon-192.png',
