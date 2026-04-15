@@ -2,10 +2,12 @@
 // US Economic News Calendar — No-Trade Days for XAUUSD
 // ============================================================
 
+export type NewsImpact = 'VERY_HIGH' | 'HIGH' | 'MEDIUM';
+
 export interface NewsEvent {
   date: string;
-  type: 'NFP' | 'FOMC' | 'CPI' | 'PPI' | 'ISM';
-  impact: 'VERY_HIGH' | 'HIGH';
+  type: string;
+  impact: NewsImpact;
   label: string;
   description: string;
   releaseTime_EST: string;
@@ -200,18 +202,31 @@ export function getMonthSummary(year: number, month: number): MonthSummary {
 }
 
 // ── Impact color helpers ────────────────────────────────────
-export function impactBorderColor(impact: 'VERY_HIGH' | 'HIGH') {
-  return impact === 'VERY_HIGH' ? 'border-red-500/60' : 'border-orange-500/50';
+export function impactBorderColor(impact: NewsImpact) {
+  if (impact === 'VERY_HIGH') return 'border-red-500/60';
+  if (impact === 'HIGH') return 'border-orange-500/50';
+  return 'border-yellow-500/40';
 }
 
-export function impactBgColor(impact: 'VERY_HIGH' | 'HIGH') {
-  return impact === 'VERY_HIGH' ? 'bg-red-500/8' : 'bg-orange-500/8';
+export function impactBgColor(impact: NewsImpact) {
+  if (impact === 'VERY_HIGH') return 'bg-red-500/8';
+  if (impact === 'HIGH') return 'bg-orange-500/8';
+  return 'bg-yellow-500/8';
 }
 
-export function impactDot(impact: 'VERY_HIGH' | 'HIGH') {
-  return impact === 'VERY_HIGH' ? 'text-red-400' : 'text-orange-400';
+export function impactDot(impact: NewsImpact) {
+  if (impact === 'VERY_HIGH') return 'text-red-400';
+  if (impact === 'HIGH') return 'text-orange-400';
+  return 'text-yellow-400';
 }
 
-export function typeShort(type: NewsEvent['type']) {
+export function typeShort(type: string) {
   return type;
+}
+
+// Rank impacts for "top impact of the day" selection
+export function impactRank(impact: NewsImpact): number {
+  if (impact === 'VERY_HIGH') return 3;
+  if (impact === 'HIGH') return 2;
+  return 1;
 }
