@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import useSWR from 'swr';
 import { cn, formatMoney, formatPnl, pnlColor } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
@@ -18,8 +18,6 @@ export default function PortfolioPage() {
   const [orderFilter, setOrderFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  const [editingThreshold, setEditingThreshold] = useState<string | null>(null);
-  const [thresholdValue, setThresholdValue] = useState('');
   const { convert, symbol } = useCurrency();
 
   const { data, error, isLoading, mutate } = useSWR('/api/portfolio', fetcher, {
@@ -30,58 +28,6 @@ export default function PortfolioPage() {
     shouldRetryOnError: true,
     keepPreviousData: true,
   });
-
-  const [bulkLocking, setBulkLocking] = useState(false);
-
-  const handleToggleLock = async (accountNumber: number, lock: boolean | null) => {
-    await fetch(`/api/account/${accountNumber}/lock`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manual_lock: lock }),
-    });
-    mutate();
-  };
-
-  const handleBulkLock = async (lock: boolean | null) => {
-    setBulkLocking(true);
-    await fetch('/api/account/all/lock', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manual_lock: lock }),
-    });
-    await mutate();
-    setBulkLocking(false);
-  };
-
-  const handleBulkAutoLock = async (enabled: boolean) => {
-    setBulkLocking(true);
-    await fetch('/api/pair-groups', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pair_group: 'all', auto_lock_enabled: enabled }),
-    });
-    await mutate();
-    setBulkLocking(false);
-  };
-
-  const handleToggleAutoLock = useCallback(async (pairGroup: string, enabled: boolean) => {
-    await fetch('/api/pair-groups', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pair_group: pairGroup, auto_lock_enabled: enabled }),
-    });
-    mutate();
-  }, [mutate]);
-
-  const handleSetThreshold = useCallback(async (pairGroup: string, value: number) => {
-    await fetch('/api/pair-groups', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pair_group: pairGroup, auto_lock_threshold: value }),
-    });
-    setEditingThreshold(null);
-    mutate();
-  }, [mutate]);
 
   // Portfolio stats with date filter
   const dateParams = dateRange.from || dateRange.to
@@ -128,6 +74,15 @@ export default function PortfolioPage() {
     };
   }, [data, selectedOwner, orderFilter]);
 
+  const t = filtered.totals;
+
+  useEffect(() => {
+    if (!t) return;
+    const closed = t.totalDaily - t.totalFloating;
+    const fmt = (n: number) => `${n >= 0 ? '+' : '-'}$${Math.abs(Math.round(convert(n)))}`;
+    document.title = `${fmt(t.totalFloating)} / ${fmt(closed)} | ClevrGold`;
+  }, [t, convert]);
+
   if (error && !data) {
     return (
       <div className="p-4 text-center text-red-400">
@@ -158,7 +113,6 @@ export default function PortfolioPage() {
   }
 
   const owners: string[] = data.owners || [];
-  const t = filtered.totals;
 
   return (
     <PullToRefresh onRefresh={() => mutate()}>
@@ -260,45 +214,10 @@ export default function PortfolioPage() {
         );
       })()}
 
-      {/* Bulk Controls — above Portfolio */}
       {t && (
-        <div>
-          <div className="grid grid-cols-4 gap-1.5 mb-3">
-            <button
-              onClick={() => handleBulkAutoLock(true)}
-              disabled={bulkLocking}
-              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-            >
-              Auto On
-            </button>
-            <button
-              onClick={() => handleBulkAutoLock(false)}
-              disabled={bulkLocking}
-              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20 hover:bg-slate-500/20 transition-colors disabled:opacity-50"
-            >
-              Auto Off
-            </button>
-            <button
-              onClick={() => handleBulkLock(true)}
-              disabled={bulkLocking}
-              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 transition-colors disabled:opacity-50"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Lock
-            </button>
-            <button
-              onClick={() => handleBulkLock(false)}
-              disabled={bulkLocking}
-              className="flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Unlock
-            </button>
-          </div>
-          <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
-            {selectedOwner === 'all' ? 'Portfolio Summary' : selectedOwner}
-          </h2>
-        </div>
+        <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
+          {selectedOwner === 'all' ? 'Portfolio Summary' : selectedOwner}
+        </h2>
       )}
 
       {/* Section: Portfolio Summary */}
@@ -309,7 +228,6 @@ export default function PortfolioPage() {
             totalEquity={t.totalEquity}
             totalFloating={t.totalFloating}
             totalDaily={t.totalDaily}
-            totalDailyClosed={data?.total_daily_closed || 0}
             totalWeekly={t.totalWeekly}
             totalMonthly={t.totalMonthly}
             accountCount={t.count}
@@ -328,8 +246,7 @@ export default function PortfolioPage() {
         const gridCols = (count: number) => {
           if (count <= 1) return 'grid-cols-1';
           if (count === 2) return 'grid-cols-1 md:grid-cols-2';
-          if (count === 3) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
-          return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+          return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
         };
 
         // Render accounts with pair grouping
@@ -368,73 +285,13 @@ export default function PortfolioPage() {
                     const pd = pair.reduce((s: number, a: any) => s + a.daily_pnl, 0);
                     const po = pair.reduce((s: number, a: any) => s + a.open_orders + a.aw_orders, 0);
                     const aw = pair.some((a: any) => a.aw_orders > 0);
-                    const autoLockOn = pair[0]?.auto_lock_enabled !== false;
-                    const threshold = pair[0]?.auto_lock_threshold ?? 3;
                     return (
                       <div key={pg}>
-                        {/* Pair label + Auto-lock + Net PnL */}
+                        {/* Pair label + Net PnL */}
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/25">
                             {pg}
                           </span>
-                          {/* Auto-lock toggle */}
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleToggleAutoLock(pg, !autoLockOn);
-                            }}
-                            className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-colors border',
-                              autoLockOn
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                : 'bg-red-500/10 text-red-400/70 border-red-500/25'
-                            )}
-                            title={autoLockOn ? 'Auto-lock เปิด — คลิกเพื่อปิด' : 'Auto-lock ปิด — คลิกเพื่อเปิด'}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={autoLockOn ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                            </svg>
-                            {autoLockOn ? 'AUTO ON' : 'AUTO OFF'}
-                          </button>
-                          {/* Threshold config */}
-                          {autoLockOn && (
-                            editingThreshold === pg ? (
-                              <form
-                                className="flex items-center gap-1"
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const v = parseFloat(thresholdValue);
-                                  if (!isNaN(v) && v >= 0) handleSetThreshold(pg, v);
-                                }}
-                              >
-                                <span className="text-[11px] text-[var(--text-dim)]">$</span>
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  min="0"
-                                  value={thresholdValue}
-                                  onChange={(e) => setThresholdValue(e.target.value)}
-                                  className="w-14 bg-[var(--bg-card)] border border-[var(--border)] rounded px-1.5 py-0.5 text-[11px] font-mono text-[var(--text-body)] focus:outline-none focus:border-emerald-500/50"
-                                  autoFocus
-                                />
-                                <button type="submit" className="text-[11px] text-emerald-400 font-bold">OK</button>
-                                <button type="button" onClick={() => setEditingThreshold(null)} className="text-[11px] text-[var(--text-dim)]">X</button>
-                              </form>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setEditingThreshold(pg);
-                                  setThresholdValue(String(threshold));
-                                }}
-                                className="text-[11px] font-mono font-semibold text-yellow-400/80 hover:text-yellow-300 transition-colors px-1.5 py-0.5 rounded border border-yellow-500/20 bg-yellow-500/10"
-                                title="คลิกเพื่อแก้ threshold"
-                              >
-                                -${threshold}
-                              </button>
-                            )
-                          )}
                           <div className="flex-1 h-px bg-[var(--border)]" />
                           {po > 0 ? (
                             <span className={cn(
@@ -452,7 +309,7 @@ export default function PortfolioPage() {
                         {/* Cards: adapt columns to pair size */}
                         <div className={cn('grid gap-3', gridCols(pair.length))}>
                           {pair.map((account: any) => (
-                            <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} onToggleLock={handleToggleLock} />
+                            <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} />
                           ))}
                         </div>
                       </div>
@@ -472,7 +329,7 @@ export default function PortfolioPage() {
                   )}
                   <div className={cn('grid gap-3', gridCols(unpaired.length))}>
                     {unpaired.map((account: any) => (
-                      <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} onToggleLock={handleToggleLock} />
+                      <AccountCard key={account.account_number} account={account} isWeekend={data?.is_weekend} />
                     ))}
                   </div>
                 </div>
