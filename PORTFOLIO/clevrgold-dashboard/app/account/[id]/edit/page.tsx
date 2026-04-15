@@ -216,12 +216,12 @@ export default function EditAccountPage() {
               <input
                 type="text"
                 value={avatarText}
-                onChange={(e) => setAvatarText(e.target.value.slice(0, 4))}
-                placeholder="e.g. AS, 07, Gold"
-                maxLength={4}
+                onChange={(e) => setAvatarText(e.target.value.slice(0, 6))}
+                placeholder="e.g. A9-5, Buy-1"
+                maxLength={6}
                 className={cn(inputClass, 'w-40')}
               />
-              <span className="text-[10px] text-slate-600 mt-1 block">Max 4 characters.</span>
+              <span className="text-[10px] text-slate-600 mt-1 block">Max 6 characters.</span>
             </div>
           </div>
 
@@ -239,8 +239,9 @@ export default function EditAccountPage() {
               </div>
             </div>
             <div>
-              <label className={labelClass}>Description</label>
-              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Gold scalping account" className={inputClass} />
+              <label className={labelClass}>Note (แสดงบน Card)</label>
+              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. H1 Trend, M15 Scalp, Gold AW" className={inputClass} />
+              <span className="text-[10px] text-slate-600 mt-1 block">ข้อความสั้นๆ เช่น TF, กลยุทธ์ แสดงใต้ชื่อบน Dashboard</span>
             </div>
           </div>
 

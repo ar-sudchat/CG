@@ -5,7 +5,7 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
 const COOKIE_NAME = 'clevrgold-token';
 
 const PUBLIC_PATHS = ['/login', '/register'];
-const PUBLIC_PREFIXES = ['/api/auth/', '/api/lock-status/', '/api/aw-events', '/api/lock-manager', '/_next/', '/favicon', '/icon', '/manifest', '/sw.js', '/apple-touch-icon'];
+const PUBLIC_PREFIXES = ['/api/auth/', '/api/lock-status/', '/api/aw-events', '/api/lock-manager', '/api/widget', '/_next/', '/favicon', '/icon', '/manifest', '/sw.js', '/apple-touch-icon'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

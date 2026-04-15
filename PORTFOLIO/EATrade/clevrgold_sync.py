@@ -35,7 +35,7 @@ MT4_FOLDER_PATTERNS = [
 
 # Sync intervals (seconds)
 SNAPSHOT_INTERVAL = 10
-HISTORY_INTERVAL = 15
+HISTORY_INTERVAL = 60
 BALANCE_INTERVAL = 300
 DAILY_SUMMARY_HOUR = 23
 STALE_MINUTES = 5
@@ -320,8 +320,7 @@ def sync_accounts():
             INSERT INTO accounts (account_number, name, server, initial_deposit)
             VALUES %s
             ON CONFLICT (account_number)
-            DO UPDATE SET name = EXCLUDED.name,
-                          server = EXCLUDED.server,
+            DO UPDATE SET server = EXCLUDED.server,
                           initial_deposit = CASE
                               WHEN accounts.initial_deposit = 0 THEN EXCLUDED.initial_deposit
                               ELSE accounts.initial_deposit
@@ -971,13 +970,12 @@ def main():
         try:
             now = time.time()
 
-            # Snapshots + Positions + Lock sync (frequent - every 10s)
+            # Snapshots + Positions (frequent - every 10s)
             if now - last_snapshot >= SNAPSHOT_INTERVAL:
                 t0 = time.time()
-                snap_data = sync_snapshots()
+                sync_snapshots()
                 sync_positions()
                 sync_insight()
-                sync_lock_status(snap_data)
                 elapsed = time.time() - t0
                 if elapsed > 5:
                     log.warning(f"Snapshot cycle slow: {elapsed:.1f}s")

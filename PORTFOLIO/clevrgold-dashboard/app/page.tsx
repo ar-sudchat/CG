@@ -77,10 +77,12 @@ export default function PortfolioPage() {
   const t = filtered.totals;
 
   useEffect(() => {
-    if (!t) return;
+    if (!data) return;
+    const floating = Number(data.total_floating) || 0;
+    const closed = Number(data.total_daily_closed) || 0;
     const fmt = (n: number) => `${n >= 0 ? '+' : '-'}$${Math.abs(Math.round(convert(n)))}`;
-    document.title = `${fmt(t.totalFloating)} / ${fmt(t.totalDaily)} | ClevrGold`;
-  }, [t, convert]);
+    document.title = `${fmt(floating)} / ${fmt(closed)} | ClevrGold`;
+  }, [data, convert]);
 
   if (error && !data) {
     return (

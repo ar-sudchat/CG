@@ -13,6 +13,7 @@ interface Account {
   avatar_url?: string | null;
   avatar_text?: string;
   ea_strategy?: string;
+  description?: string;
   pair_group?: string;
   account_type?: string;
   balance: number;
@@ -33,14 +34,10 @@ interface Account {
   updated_at: string;
   seconds_ago?: number;
   is_offline?: boolean;
-  manual_lock?: boolean | null;
-  is_locked?: boolean;
-  lock_reason?: string | null;
-  locked_by?: number | null;
   insight?: Record<string, unknown> | null;
 }
 
-export default function AccountCard({ account, isWeekend, onToggleLock }: { account: Account; isWeekend?: boolean; onToggleLock?: (accountNumber: number, lock: boolean | null) => void }) {
+export default function AccountCard({ account, isWeekend }: { account: Account; isWeekend?: boolean }) {
   const { convert, symbol } = useCurrency();
   const isAW = account.aw_orders > 0 || account.mode === 'AW';
   const isMG = !isAW && ((account.buy_orders ?? 0) > 1 || (account.sell_orders ?? 0) > 1);
@@ -120,41 +117,12 @@ export default function AccountCard({ account, isWeekend, onToggleLock }: { acco
               {account.owner && (
                 <div className="text-[10px] text-[var(--text-secondary)] truncate max-w-[160px]">{account.owner}</div>
               )}
+              {account.description && (
+                <div className="text-[9px] text-[var(--text-dim)] truncate max-w-[160px]">{account.description}</div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {onToggleLock && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // Tri-state: if manual override exists, reset to null (auto).
-                  // If null and locked (auto), force unlock. If null and unlocked, force lock.
-                  const newValue = account.manual_lock !== null && account.manual_lock !== undefined
-                    ? null
-                    : !account.is_locked;
-                  onToggleLock(account.account_number, newValue);
-                }}
-                className={cn(
-                  'w-7 h-7 rounded-md flex items-center justify-center transition-all border',
-                  account.is_locked
-                    ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30'
-                    : 'bg-transparent border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text-secondary)] hover:border-[var(--text-dim)]'
-                )}
-                title={account.is_locked ? (account.lock_reason || 'Locked') : 'Lock account'}
-              >
-                {account.is_locked ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                    <path d="M12 2C9.24 2 7 4.24 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7c0-2.76-2.24-5-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9zm3 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
-                  </svg>
-                )}
-              </button>
-            )}
             <StatusBadge
               mode={account.mode}
               orders={account.open_orders}

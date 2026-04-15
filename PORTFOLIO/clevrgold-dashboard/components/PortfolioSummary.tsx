@@ -8,7 +8,6 @@ interface PortfolioSummaryProps {
   totalEquity: number;
   totalFloating: number;
   totalDaily: number;
-  totalDailyClosed: number;
   totalWeekly: number;
   totalMonthly: number;
   accountCount: number;
@@ -21,7 +20,6 @@ export default function PortfolioSummary({
   totalEquity,
   totalFloating,
   totalDaily,
-  totalDailyClosed,
   totalWeekly,
   totalMonthly,
   accountCount,
@@ -71,19 +69,22 @@ export default function PortfolioSummary({
       {/* Row 2: Daily, Weekly, Monthly P&L */}
       <div className="grid grid-cols-3 gap-2">
         {(() => {
+          const dailyTotal = totalDaily + totalFloating;
           const totalTarget = DAILY_TARGET_USD * accountCount;
-          const pct = totalTarget > 0 ? Math.min((totalDaily / totalTarget) * 100, 100) : 0;
-          const hit = totalDaily >= totalTarget;
+          const pct = totalTarget > 0 ? Math.min((dailyTotal / totalTarget) * 100, 100) : 0;
+          const hit = dailyTotal >= totalTarget;
           return (
-            <div className={cn('bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-2.5 min-w-0', pnlBgColor(totalDaily))}>
+            <div className={cn('bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-2.5 min-w-0', pnlBgColor(dailyTotal))}>
               <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-0.5">
                 Daily {hit ? '✓' : ''}
               </div>
-              <div className={cn('font-mono text-sm sm:text-base font-bold truncate', pnlColor(totalDaily))}>
-                {formatPnlShort(convert(totalDaily), symbol)}
+              <div className={cn('font-mono text-sm sm:text-base font-bold truncate', pnlColor(dailyTotal))}>
+                {formatPnlShort(convert(dailyTotal), symbol)}
               </div>
-              <div className={cn('text-[9px] font-mono mt-0.5 truncate', pnlColor(totalDailyClosed))}>
-                {formatPnlShort(convert(totalDailyClosed), symbol)}
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={cn('text-[9px] font-mono', pnlColor(totalDaily))}>closed {formatPnlShort(convert(totalDaily), symbol)}</span>
+                <span className="text-[8px] text-[var(--text-dim)]">/</span>
+                <span className={cn('text-[9px] font-mono', pnlColor(totalFloating))}>float {formatPnlShort(convert(totalFloating), symbol)}</span>
               </div>
               <div className="w-full h-1 bg-[var(--bar-track)] rounded-full overflow-hidden mt-1">
                 <div
