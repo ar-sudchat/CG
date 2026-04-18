@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import type { NewsEvent, NewsImpact } from '@/lib/news-calendar';
-import { impactRank } from '@/lib/news-calendar';
+import { impactRank, buildNewsMap as buildHardcodedMap } from '@/lib/news-calendar';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -114,12 +114,26 @@ export default function PnlCalendar() {
   );
 
   const newsMap = useMemo(() => {
-    const m = new Map<string, NewsEvent[]>();
+    // Baseline: hardcoded FOMC/NFP/CPI/PPI/ISM for full year (future-proof coverage)
+    const m = buildHardcodedMap(year, month + 1);
+
+    // Overlay: live ForexFactory events (this week + next week detailed)
     const rows: Array<{
       date: string; event_time_est: string | null; event_time_th: string | null;
       impact: string; title: string; type_short: string | null;
       forecast: string | null; previous: string | null;
     }> = newsData?.events || [];
+
+    // Dedupe key — if DB has an event matching a hardcoded one (same date + type), drop hardcoded
+    const dbKeys = new Set(rows.map(r => `${r.date}|${r.type_short}`));
+    const datesToProcess = Array.from(m.keys());
+    for (const date of datesToProcess) {
+      const evs = m.get(date)!;
+      const kept = evs.filter((e: NewsEvent) => !dbKeys.has(`${date}|${e.type}`));
+      if (kept.length === 0) m.delete(date);
+      else m.set(date, kept);
+    }
+
     for (const r of rows) {
       const ev: NewsEvent = {
         date: r.date,
@@ -140,7 +154,7 @@ export default function PnlCalendar() {
       m.get(ev.date)!.push(ev);
     }
     return m;
-  }, [newsData]);
+  }, [newsData, year, month]);
 
   const summary = useMemo(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
