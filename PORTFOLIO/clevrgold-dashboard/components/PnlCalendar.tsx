@@ -361,10 +361,10 @@ export default function PnlCalendar() {
                                       <span className="text-[13px] leading-none text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.9)]">★</span>
                                     )}
                                     {hasMorning && (
-                                      <span className="text-[11px] leading-none" title="ข่าวช่วงเช้าไทย">☀️</span>
+                                      <span className="text-[8px] leading-none" title="ข่าวช่วงเช้าไทย">☀️</span>
                                     )}
                                     {hasEvening && (
-                                      <span className="text-[11px] leading-none" title="ข่าวช่วงเย็นไทย (หลัง 17:30)">🌙</span>
+                                      <span className="text-[8px] leading-none" title="ข่าวช่วงเย็นไทย (หลัง 17:30)">🌙</span>
                                     )}
                                   </span>
                                 );
