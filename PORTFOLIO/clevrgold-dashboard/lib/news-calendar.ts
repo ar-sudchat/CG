@@ -97,27 +97,41 @@ export function getNewsEvents(year: number, month: number): NewsEvent[] {
       });
     }
 
-    // FOMC — distinguish decision day (end = day 2) vs meeting day 1 vs buffer days
+    // FOMC — decision+post = high danger, day 1 + pre-day = lighter
     const fomc = FOMC_DATES.find(f => f.block.includes(dateStr));
     if (fomc) {
       const isDecision = dateStr === fomc.end;
       const isMeetingStart = dateStr === fomc.start;
       const isBefore = dateStr < fomc.start;
+      const isAfter = dateStr > fomc.end;
       let type: string;
       let label: string;
-      if (isDecision) { type = 'FOMC★'; label = 'FOMC Decision Day'; }
-      else if (isMeetingStart) { type = 'FOMC'; label = 'FOMC Meeting Day 1'; }
-      else if (isBefore) { type = 'FOMC-'; label = 'FOMC Pre-Meeting Day'; }
-      else { type = 'FOMC+'; label = 'FOMC Post-Meeting Day'; }
+      let impact: NewsImpact;
+      let rule: string;
+      if (isDecision) {
+        type = 'FOMC★'; label = 'FOMC Decision Day'; impact = 'VERY_HIGH';
+        rule = 'Skip entire day — rate statement at 01:00 TH+1';
+      } else if (isAfter) {
+        type = 'FOMC+'; label = 'FOMC Post-Meeting Day'; impact = 'VERY_HIGH';
+        rule = 'Skip — follow-through volatility from decision';
+      } else if (isMeetingStart) {
+        type = 'FOMC'; label = 'FOMC Meeting Day 1'; impact = 'MEDIUM';
+        rule = 'Caution — usually quiet but possible leak';
+      } else {
+        type = 'FOMC-'; label = 'FOMC Pre-Meeting Day'; impact = 'MEDIUM';
+        rule = 'Caution — thin volume before meeting';
+      }
       events.push({
-        date: dateStr, type, impact: 'VERY_HIGH',
+        date: dateStr, type, impact,
         label,
         description: isDecision
           ? 'Fed rate decision + press conference (2:00 PM ET / 01:00 TH+1)'
-          : 'Fed meeting block — avoid trading',
+          : isAfter
+            ? 'Post-decision follow-through — trends often extend'
+            : 'Fed meeting block — watch for volume drop',
         releaseTime_EST: isDecision ? '2:00 PM' : '—',
         releaseTime_TH: isDecision ? '01:00+1' : '—',
-        rule: `FOMC block ${fomc.block[0]} to ${fomc.block[3]}`,
+        rule,
         fomcDetail: `Meeting ${fomc.start} to ${fomc.end} · Decision ${fomc.end}`,
       });
     }
