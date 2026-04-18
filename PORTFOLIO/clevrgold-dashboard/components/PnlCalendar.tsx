@@ -340,18 +340,26 @@ export default function PnlCalendar() {
                                 'text-[10px] font-mono',
                                 isToday ? 'text-[#eab308]' : hasNews ? (topImpact === 'VERY_HIGH' ? 'text-red-400/80' : topImpact === 'HIGH' ? 'text-orange-400/80' : 'text-yellow-400/80') : 'text-slate-500'
                               )}>{day}</span>
-                              {hasNews && newsEvents!.length > 0 && (
-                                <span className={cn(
-                                  'text-[7px] font-mono font-bold leading-none px-0.5 rounded',
-                                  topImpact === 'VERY_HIGH'
-                                    ? 'bg-red-500/20 text-red-400'
-                                    : topImpact === 'HIGH'
-                                      ? 'bg-orange-500/20 text-orange-400'
-                                      : 'bg-yellow-500/20 text-yellow-400'
-                                )}>
-                                  {newsEvents!.map(e => e.type).filter((v, i, a) => a.indexOf(v) === i).join('+')}
-                                </span>
-                              )}
+                              {hasNews && newsEvents!.length > 0 && (() => {
+                                const types = newsEvents!.map(e => e.type).filter((v, i, a) => a.indexOf(v) === i);
+                                const isFomcDecision = types.some(t => t.includes('★'));
+                                const cleanTypes = types.map(t => t.replace('★', '')).join('+');
+                                return (
+                                  <span className={cn(
+                                    'text-[7px] font-mono font-bold leading-none px-0.5 rounded flex items-center gap-0.5',
+                                    topImpact === 'VERY_HIGH'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : topImpact === 'HIGH'
+                                        ? 'bg-orange-500/20 text-orange-400'
+                                        : 'bg-yellow-500/20 text-yellow-400'
+                                  )}>
+                                    {cleanTypes}
+                                    {isFomcDecision && (
+                                      <span className="text-[13px] leading-none text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.9)]">★</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             {/* PnL or NO TRADE */}
