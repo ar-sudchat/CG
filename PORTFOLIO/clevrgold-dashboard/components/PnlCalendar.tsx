@@ -349,7 +349,7 @@ export default function PnlCalendar() {
                                 const hasEvening = newsEvents!.some(e => !e.type.startsWith('FOMC') && timeOfDay(e.releaseTime_TH) === 'evening');
                                 return (
                                   <span className={cn(
-                                    'text-[7px] font-mono font-bold leading-none px-0.5 rounded flex items-center gap-0.5',
+                                    'text-[9px] font-mono font-bold leading-none px-0.5 rounded flex items-center gap-0.5',
                                     topImpact === 'VERY_HIGH'
                                       ? 'bg-red-500/20 text-red-400'
                                       : topImpact === 'HIGH'
@@ -361,10 +361,10 @@ export default function PnlCalendar() {
                                       <span className="text-[13px] leading-none text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.9)]">★</span>
                                     )}
                                     {hasMorning && (
-                                      <span className="text-[8px] leading-none" title="ข่าวช่วงเช้าไทย">☀️</span>
+                                      <span className="text-[9px] leading-none" title="ข่าวช่วงเช้าไทย">☀️</span>
                                     )}
                                     {hasEvening && (
-                                      <span className="text-[8px] leading-none" title="ข่าวช่วงเย็นไทย (หลัง 17:30)">🌙</span>
+                                      <span className="text-[6px] leading-none" title="ข่าวช่วงเย็นไทย (หลัง 17:30)">🌙</span>
                                     )}
                                   </span>
                                 );
