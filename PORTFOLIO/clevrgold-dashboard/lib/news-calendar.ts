@@ -255,3 +255,19 @@ export function impactRank(impact: NewsImpact): number {
   if (impact === 'HIGH') return 2;
   return 1;
 }
+
+// Parse TH release time → 'morning' | 'evening' | null
+// Morning: before 12:00 TH · Evening: 17:30 TH or later (or next-day like 01:00+1)
+export function timeOfDay(thTime: string | null | undefined): 'morning' | 'evening' | null {
+  if (!thTime || thTime === '—') return null;
+  // Next-day markers like "01:00+1" → evening (past midnight = evening session)
+  if (/\+1/.test(thTime)) return 'evening';
+  const m = thTime.match(/(\d{1,2}):?(\d{2})?/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mm = parseInt(m[2] || '0', 10);
+  const total = h * 60 + mm;
+  if (total < 12 * 60) return 'morning';
+  if (total >= 17 * 60 + 30) return 'evening';
+  return null;
+}

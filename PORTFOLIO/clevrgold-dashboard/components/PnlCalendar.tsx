@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import type { NewsEvent, NewsImpact } from '@/lib/news-calendar';
-import { impactRank, buildNewsMap as buildHardcodedMap } from '@/lib/news-calendar';
+import { impactRank, buildNewsMap as buildHardcodedMap, timeOfDay } from '@/lib/news-calendar';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -344,6 +344,9 @@ export default function PnlCalendar() {
                                 const types = newsEvents!.map(e => e.type).filter((v, i, a) => a.indexOf(v) === i);
                                 const isFomcDecision = types.some(t => t.includes('★'));
                                 const cleanTypes = types.map(t => t.replace('★', '')).join('+');
+                                // Time-of-day icons: aggregate across non-FOMC events
+                                const hasMorning = newsEvents!.some(e => !e.type.startsWith('FOMC') && timeOfDay(e.releaseTime_TH) === 'morning');
+                                const hasEvening = newsEvents!.some(e => !e.type.startsWith('FOMC') && timeOfDay(e.releaseTime_TH) === 'evening');
                                 return (
                                   <span className={cn(
                                     'text-[7px] font-mono font-bold leading-none px-0.5 rounded flex items-center gap-0.5',
@@ -356,6 +359,12 @@ export default function PnlCalendar() {
                                     {cleanTypes}
                                     {isFomcDecision && (
                                       <span className="text-[13px] leading-none text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.9)]">★</span>
+                                    )}
+                                    {hasMorning && (
+                                      <span className="text-[11px] leading-none" title="ข่าวช่วงเช้าไทย">☀️</span>
+                                    )}
+                                    {hasEvening && (
+                                      <span className="text-[11px] leading-none" title="ข่าวช่วงเย็นไทย (หลัง 17:30)">🌙</span>
                                     )}
                                   </span>
                                 );
