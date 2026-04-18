@@ -97,17 +97,28 @@ export function getNewsEvents(year: number, month: number): NewsEvent[] {
       });
     }
 
-    // FOMC
+    // FOMC — distinguish decision day (end = day 2) vs meeting day 1 vs buffer days
     const fomc = FOMC_DATES.find(f => f.block.includes(dateStr));
     if (fomc) {
-      const isMeeting = dateStr === fomc.start || dateStr === fomc.end;
+      const isDecision = dateStr === fomc.end;
+      const isMeetingStart = dateStr === fomc.start;
+      const isBefore = dateStr < fomc.start;
+      let type: string;
+      let label: string;
+      if (isDecision) { type = 'FOMC★'; label = 'FOMC Decision Day'; }
+      else if (isMeetingStart) { type = 'FOMC'; label = 'FOMC Meeting Day 1'; }
+      else if (isBefore) { type = 'FOMC-'; label = 'FOMC Pre-Meeting Day'; }
+      else { type = 'FOMC+'; label = 'FOMC Post-Meeting Day'; }
       events.push({
-        date: dateStr, type: 'FOMC', impact: 'VERY_HIGH',
-        label: isMeeting ? 'FOMC Meeting Day' : 'FOMC +/-1 Day',
-        description: 'Fed interest rate decision + economic projections',
-        releaseTime_EST: '2:00 PM (day 2)', releaseTime_TH: '01:00+1',
+        date: dateStr, type, impact: 'VERY_HIGH',
+        label,
+        description: isDecision
+          ? 'Fed rate decision + press conference (2:00 PM ET / 01:00 TH+1)'
+          : 'Fed meeting block — avoid trading',
+        releaseTime_EST: isDecision ? '2:00 PM' : '—',
+        releaseTime_TH: isDecision ? '01:00+1' : '—',
         rule: `FOMC block ${fomc.block[0]} to ${fomc.block[3]}`,
-        fomcDetail: `Meeting ${fomc.start} to ${fomc.end}`,
+        fomcDetail: `Meeting ${fomc.start} to ${fomc.end} · Decision ${fomc.end}`,
       });
     }
 
