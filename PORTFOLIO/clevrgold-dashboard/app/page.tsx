@@ -78,11 +78,9 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     if (!data) return;
-    const floating = Number(data.total_floating) || 0;
-    const closed = Number(data.total_daily_closed) || 0;
     const fmt = (n: number) => `${n >= 0 ? '+' : '-'}$${Math.abs(Math.round(convert(n)))}`;
-    document.title = `${fmt(floating)} / ${fmt(closed)} | ClevrGold`;
-  }, [data, convert]);
+    document.title = `${fmt(t.totalFloating)} / ${fmt(t.totalDaily)} | ClevrGold`;
+  }, [data, convert, t.totalFloating, t.totalDaily]);
 
   if (error && !data) {
     return (
