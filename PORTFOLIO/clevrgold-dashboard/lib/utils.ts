@@ -64,7 +64,8 @@ export function formatMarginLevel(value: number | null | undefined): string {
 export function timeAgoFromSeconds(seconds: number | null | undefined): string {
   if (seconds == null) return 'N/A';
   const s = Math.round(seconds);
-  if (s < 0) return 'just now';
+  if (s < -120) return 'stale';      // timestamp in the future = corrupt/stale data
+  if (s < 0) return 'just now';      // small negatives = harmless clock jitter
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ago`;
