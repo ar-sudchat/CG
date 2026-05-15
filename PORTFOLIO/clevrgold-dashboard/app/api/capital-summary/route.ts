@@ -120,12 +120,12 @@ export async function GET() {
     const weekEquityStart = weekStartEquity.reduce((s, r) => s + Number(r.equity) / centDiv(r.account_number), 0);
     const dayEquityStart = dayStartEquity.reduce((s, r) => s + Number(r.equity) / centDiv(r.account_number), 0);
 
-    const monthWithdrawals = sumByType(feMonth as { type: string; total: string }[], 'withdrawal');
-    const monthDeposits = sumByType(feMonth as { type: string; total: string }[], 'deposit');
-    const weekWithdrawals = sumByType(feWeek as { type: string; total: string }[], 'withdrawal');
-    const weekDeposits = sumByType(feWeek as { type: string; total: string }[], 'deposit');
-    const dayWithdrawals = sumByType(feDay as { type: string; total: string }[], 'withdrawal');
-    const dayDeposits = sumByType(feDay as { type: string; total: string }[], 'deposit');
+    const monthWithdrawals = sumByType(feMonth as unknown as { type: string; total: string }[], 'withdrawal');
+    const monthDeposits = sumByType(feMonth as unknown as { type: string; total: string }[], 'deposit');
+    const weekWithdrawals = sumByType(feWeek as unknown as { type: string; total: string }[], 'withdrawal');
+    const weekDeposits = sumByType(feWeek as unknown as { type: string; total: string }[], 'deposit');
+    const dayWithdrawals = sumByType(feDay as unknown as { type: string; total: string }[], 'withdrawal');
+    const dayDeposits = sumByType(feDay as unknown as { type: string; total: string }[], 'deposit');
 
     // P&L = Current Equity + Withdrawals - Deposits - Start Equity
     const monthPnl = totalEquity + monthWithdrawals - monthDeposits - monthEquityStart;

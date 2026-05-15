@@ -1,9 +1,10 @@
 """
-ClevrGold DB Sync v2.0 - Reads CSV from MT4 folders → Neon PostgreSQL
+ClevrGold DB Sync v2.0 - Reads CSV from MT4 folders → PostgreSQL
 Run on the same PC as MT4. Keeps running in background.
 Supports multiple MT4 terminals (C:\\MT4ACC1, C:\\MT4ACC2, ...)
 
 v2.0: Persistent connection, batch inserts, reduced logging
+v2.1: Read DB_URL from env (was hard-coded Neon URL)
 """
 
 import os
@@ -25,7 +26,11 @@ except ImportError:
 # CONFIGURATION
 # ============================================================
 
-NEON_URL = "postgresql://neondb_owner:npg_PIfHpr1K2vMT@ep-fragrant-art-aibzvw2m-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DB_URL = os.environ.get("DB_URL")
+if not DB_URL:
+    print("ERROR: DB_URL environment variable not set.")
+    print("Example (Windows cmd): set DB_URL=postgresql://user:pw@host:5432/dbname")
+    exit(1)
 
 MT4_FOLDER_PATTERNS = [
     r"C:\MT4ACC*\MQL4\Files",
@@ -35,8 +40,8 @@ MT4_FOLDER_PATTERNS = [
 
 # Sync intervals (seconds)
 SNAPSHOT_INTERVAL = 10
-HISTORY_INTERVAL = 60
-BALANCE_INTERVAL = 300
+HISTORY_INTERVAL = 30
+BALANCE_INTERVAL = 120
 DAILY_SUMMARY_HOUR = 23
 STALE_MINUTES = 5
 
@@ -112,7 +117,7 @@ def get_conn():
     for attempt in range(3):
         try:
             _conn = psycopg2.connect(
-                NEON_URL,
+                DB_URL,
                 connect_timeout=10,
                 keepalives=1,
                 keepalives_idle=30,
@@ -939,7 +944,15 @@ def main():
     print(f"  MT4 Folders: {len(mt4_folders)} found")
     for f in mt4_folders:
         print(f"    - {f}")
-    print(f"  Database:   Neon PostgreSQL")
+    # Mask password in connection string for log
+    _safe_url = DB_URL
+    if "@" in _safe_url and "://" in _safe_url:
+        scheme, rest = _safe_url.split("://", 1)
+        if "@" in rest:
+            _userpass, _hostpart = rest.split("@", 1)
+            _user = _userpass.split(":", 1)[0]
+            _safe_url = f"{scheme}://{_user}:***@{_hostpart}"
+    print(f"  Database:   {_safe_url}")
     print(f"  Intervals:  Snap={SNAPSHOT_INTERVAL}s  History={HISTORY_INTERVAL}s")
     print("=" * 50)
 

@@ -1,9 +1,9 @@
-import { neon } from '@neondatabase/serverless';
+import postgres from 'postgres';
 
-// Disable Next.js fetch caching for all DB queries
-// Next.js patches global fetch to cache by default — neon uses fetch internally
-const sql = neon(process.env.DATABASE_URL!, {
-  fetchOptions: { cache: 'no-store' },
+const sql = postgres(process.env.DATABASE_URL!, {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
 });
 
 // ICMarkets server timezone = GMT+2 (EET)

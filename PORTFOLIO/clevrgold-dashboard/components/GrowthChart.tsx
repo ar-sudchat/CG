@@ -32,7 +32,7 @@ export default function GrowthChart() {
   const { data, isLoading } = useSWR(
     `/api/daily-pnl?days=${periods[selectedPeriod].days}&account=all`,
     fetcher,
-    { refreshInterval: 30000 }
+    { refreshInterval: 15000 }
   );
 
   // Build cumulative growth from daily PnL

@@ -92,7 +92,7 @@ export default function PnlCalendar() {
   const [popupData, setPopupData] = useState<{ date: string; events: NewsEvent[] } | null>(null);
 
   const { data, isLoading } = useSWR('/api/daily-pnl?days=120', fetcher, {
-    refreshInterval: 60000,
+    refreshInterval: 15000,
   });
 
   const dayMap = useMemo(() => {
@@ -124,17 +124,26 @@ export default function PnlCalendar() {
       forecast: string | null; previous: string | null;
     }> = newsData?.events || [];
 
-    // Dedupe key — if DB has an event matching a hardcoded one (same date + type), drop hardcoded
-    const dbKeys = new Set(rows.map(r => `${r.date}|${r.type_short}`));
-    const datesToProcess = Array.from(m.keys());
-    for (const date of datesToProcess) {
-      const evs = m.get(date)!;
-      const kept = evs.filter((e: NewsEvent) => !dbKeys.has(`${date}|${e.type}`));
-      if (kept.length === 0) m.delete(date);
-      else m.set(date, kept);
-    }
+    // Hardcoded FOMC/NFP/CPI/PPI/ISM are always kept — they carry richer
+    // labeling (FOMC★ decision day, FOMC- pre-day, etc) that DB events lack.
+    // To avoid showing duplicate badges, skip DB rows whose (date|type) matches
+    // any hardcoded entry on that date (allowing for FOMC family suffixes).
+    const hardcodedKeys = new Set<string>();
+    const hardcodedFomcDates = new Set<string>();
+    m.forEach((evs, date) => {
+      for (const e of evs) {
+        hardcodedKeys.add(`${date}|${e.type}`);
+        if (e.type.startsWith('FOMC')) hardcodedFomcDates.add(date);
+      }
+    });
+    const filteredRows = rows.filter(r => {
+      if (hardcodedKeys.has(`${r.date}|${r.type_short}`)) return false;
+      // Drop DB FOMC rows when hardcoded already covers that day (richer detail)
+      if (r.type_short === 'FOMC' && hardcodedFomcDates.has(r.date)) return false;
+      return true;
+    });
 
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const ev: NewsEvent = {
         date: r.date,
         type: r.type_short || 'NEWS',

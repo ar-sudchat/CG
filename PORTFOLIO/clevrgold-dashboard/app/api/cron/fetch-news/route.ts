@@ -39,11 +39,17 @@ async function ensureNewsTable() {
 // Classify event into VERY_HIGH / HIGH / MEDIUM
 function classifyImpact(title: string, ffImpact: FFImpact): 'VERY_HIGH' | 'HIGH' | 'MEDIUM' | null {
   const t = title.toLowerCase();
-  // Mega-movers always VERY_HIGH regardless of FF label
+  // Fed Member speeches — high impact but NOT meeting-decision level
+  // (these are just public speeches/Q&A, not rate decisions)
+  if (t.includes('fomc member') || t.includes('fed member') || (t.includes('speaks') && (t.includes('fed') || t.includes('fomc')))) {
+    return 'HIGH';
+  }
+  // Mega-movers — VERY_HIGH (rate decision day, NFP, etc)
   if (
     t.includes('non-farm') || t.includes('nonfarm') || t.includes('nfp') ||
-    t.includes('fomc') || t.includes('federal funds') || t.includes('fed chair') ||
-    t.includes('rate statement') || t.includes('rate decision')
+    t.includes('federal funds') || t.includes('fed chair') ||
+    t.includes('rate statement') || t.includes('rate decision') ||
+    (t.includes('fomc') && (t.includes('statement') || t.includes('press conference') || t.includes('projections')))
   ) return 'VERY_HIGH';
   if (ffImpact === 'High') return 'HIGH';
   if (ffImpact === 'Medium') return 'MEDIUM';
@@ -54,8 +60,10 @@ function classifyImpact(title: string, ffImpact: FFImpact): 'VERY_HIGH' | 'HIGH'
 function shortCode(title: string): string {
   const t = title.toLowerCase();
   if (t.includes('non-farm') || t.includes('nonfarm') || t.includes('nfp')) return 'NFP';
-  if (t.includes('fomc') || t.includes('federal funds') || t.includes('rate statement') || t.includes('rate decision')) return 'FOMC';
-  if (t.includes('fed chair')) return 'FED';
+  // FOMC short = real meeting decision; member speeches → FED (separate)
+  if ((t.includes('fomc') && (t.includes('statement') || t.includes('press conference') || t.includes('projections'))) ||
+      t.includes('federal funds') || t.includes('rate statement') || t.includes('rate decision')) return 'FOMC';
+  if (t.includes('fomc member') || t.includes('fed member') || t.includes('fed chair') || (t.includes('speaks') && (t.includes('fed') || t.includes('fomc')))) return 'FED';
   if (t.includes('core cpi')) return 'CCPI';
   if (t.includes('cpi')) return 'CPI';
   if (t.includes('core ppi')) return 'CPPI';
@@ -123,13 +131,16 @@ export async function GET(request: NextRequest) {
   ];
 
   let fetched = 0, inserted = 0, updated = 0, skipped = 0;
+  const fetchErrors: string[] = [];
 
   for (const url of urls) {
     let events: FFEvent[];
     try {
       events = await fetchFF(url);
     } catch (e) {
-      return NextResponse.json({ error: String(e) }, { status: 500 });
+      // Skip this URL but continue — e.g. nextweek.json 404 before week rolls over
+      fetchErrors.push(String(e));
+      continue;
     }
 
     for (const ev of events) {
@@ -167,5 +178,6 @@ export async function GET(request: NextRequest) {
     inserted,
     updated,
     skipped,
+    fetch_errors: fetchErrors,
   });
 }

@@ -30,7 +30,7 @@ export default function AWReportPage() {
   const { data, isLoading } = useSWR(
     apiUrl,
     fetcher,
-    { refreshInterval: 30000 }
+    { refreshInterval: 15000 }
   );
 
   const days = filter.type === 'days' ? filter.days : 0;

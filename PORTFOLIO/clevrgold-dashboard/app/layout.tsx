@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { CurrencyProvider } from "@/lib/currency";
+import SWRProvider from "@/components/SWRProvider";
 
 import PWARegister from "@/components/PWARegister";
 
@@ -50,14 +51,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]`}
       >
-        <CurrencyProvider>
-          <PWARegister />
-          <Header />
-          <main className="max-w-7xl mx-auto overflow-x-hidden">
-            {children}
-          </main>
-          <BottomNav />
-        </CurrencyProvider>
+        <SWRProvider>
+          <CurrencyProvider>
+            <PWARegister />
+            <Header />
+            <main className="max-w-7xl mx-auto overflow-x-hidden">
+              {children}
+            </main>
+            <BottomNav />
+          </CurrencyProvider>
+        </SWRProvider>
       </body>
     </html>
   );

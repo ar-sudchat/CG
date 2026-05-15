@@ -154,6 +154,7 @@ export default function BottomNav() {
   const navItems = [
     { href: '/', label: 'Portfolio', iconKey: 'portfolio' },
     { href: '/trades', label: 'Trades', iconKey: 'trades' },
+    { href: '/statement', label: 'Statement', iconKey: 'finance' },
     { href: '/my-accounts', label: 'Accounts', iconKey: 'accounts' },
     { href: '/finance', label: 'Finance', iconKey: 'finance' },
     { href: '/converter', label: '$฿', iconKey: 'converter' },

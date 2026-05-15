@@ -10,12 +10,16 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     if (session.role === 'admin') {
-      // Admin sees all accounts
+      // Admin sees all globally-active accounts; user_is_active reflects this
+      // admin's own user_accounts row (used by UI to pre-select "their" accounts)
       const rows = await sql`
         SELECT a.account_number, a.name, a.owner,
-               s.balance, s.equity, TRUE as is_active
+               s.balance, s.equity,
+               COALESCE(ua.is_active, FALSE) AS user_is_active
         FROM accounts a
         LEFT JOIN snapshots s ON a.account_number = s.account_number
+        LEFT JOIN user_accounts ua
+          ON ua.account_number = a.account_number AND ua.user_id = ${session.userId}
         WHERE a.is_active = TRUE
         ORDER BY a.account_number
       `;
@@ -27,6 +31,7 @@ export async function GET() {
           balance: Number(r.balance) || 0,
           equity: Number(r.equity) || 0,
           is_active: true,
+          user_is_active: r.user_is_active === true,
         })),
       });
     }
@@ -49,6 +54,7 @@ export async function GET() {
         balance: Number(r.balance) || 0,
         equity: Number(r.equity) || 0,
         is_active: r.is_active,
+        user_is_active: r.is_active === true,
       })),
     });
   } catch (error) {

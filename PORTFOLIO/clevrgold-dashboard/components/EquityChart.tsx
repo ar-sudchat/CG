@@ -33,7 +33,7 @@ export default function EquityChart({ account = 'all' }: EquityChartProps) {
   const { data, isLoading } = useSWR(
     `/api/equity?days=${periods[selectedPeriod].days}&account=${account}`,
     fetcher,
-    { refreshInterval: 15000 }
+    { refreshInterval: 10000 }
   );
 
   const chartData = data?.data?.map((d: { time: string; balance: number; equity: number }) => ({

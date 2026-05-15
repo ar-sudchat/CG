@@ -39,7 +39,7 @@ export default function DailyPnlChart({ account = 'all', accountCount = 1 }: Dai
   const { data, isLoading } = useSWR(
     `/api/daily-pnl?days=${periods[selectedPeriod].days}&account=${account}`,
     fetcher,
-    { refreshInterval: 15000 }
+    { refreshInterval: 10000 }
   );
 
   const chartData = data?.data?.map((d: { day: string; pnl: number; trades: number; wins: number }) => ({
